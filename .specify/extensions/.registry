@@ -1,0 +1,52 @@
+{
+  "schema_version": "1.0",
+  "extensions": {
+    "product-forge": {
+      "version": "1.1.1",
+      "source": "local",
+      "manifest_hash": "sha256:e8fc6e2ae9be7d0edebf03b53f26f5c60dc86bd8441b77be6de6869bf2f60454",
+      "enabled": true,
+      "priority": 10,
+      "registered_commands": {
+        "claude": [
+          "speckit.product-forge.forge",
+          "speckit.product-forge.research",
+          "speckit.product-forge.product-spec",
+          "speckit.product-forge.revalidate",
+          "speckit.product-forge.bridge",
+          "speckit.product-forge.implement",
+          "speckit.product-forge.verify-full",
+          "speckit.product-forge.test-plan",
+          "speckit.product-forge.test-run",
+          "speckit.product-forge.status"
+        ],
+        "codex": [
+          "speckit.product-forge.forge",
+          "speckit.product-forge.research",
+          "speckit.product-forge.product-spec",
+          "speckit.product-forge.revalidate",
+          "speckit.product-forge.bridge",
+          "speckit.product-forge.implement",
+          "speckit.product-forge.verify-full",
+          "speckit.product-forge.test-plan",
+          "speckit.product-forge.test-run",
+          "speckit.product-forge.status"
+        ],
+        "copilot": [
+          "speckit.product-forge.forge",
+          "speckit.product-forge.research",
+          "speckit.product-forge.product-spec",
+          "speckit.product-forge.revalidate",
+          "speckit.product-forge.bridge",
+          "speckit.product-forge.implement",
+          "speckit.product-forge.verify-full",
+          "speckit.product-forge.test-plan",
+          "speckit.product-forge.test-run",
+          "speckit.product-forge.status"
+        ]
+      },
+      "registered_skills": [],
+      "installed_at": "2026-04-05T19:21:14.601380+00:00"
+    }
+  }
+}

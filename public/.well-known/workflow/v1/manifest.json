@@ -1,0 +1,148 @@
+{
+  "version": "1.0.0",
+  "steps": {
+    "node_modules/workflow/dist/internal/builtins.js": {
+      "__builtin_response_array_buffer": {
+        "stepId": "__builtin_response_array_buffer"
+      },
+      "__builtin_response_json": {
+        "stepId": "__builtin_response_json"
+      },
+      "__builtin_response_text": {
+        "stepId": "__builtin_response_text"
+      }
+    },
+    "src/workflows/steps/writer.ts": {
+      "writeStreamClose": {
+        "stepId": "step//./src/workflows/steps/writer//writeStreamClose"
+      },
+      "writeTurnEnd": {
+        "stepId": "step//./src/workflows/steps/writer//writeTurnEnd"
+      },
+      "writeUserMessageMarker": {
+        "stepId": "step//./src/workflows/steps/writer//writeUserMessageMarker"
+      }
+    },
+    "node_modules/@workflow/ai/dist/agent/stream-text-iterator.js": {
+      "writeToolOutputToUI": {
+        "stepId": "step//@workflow/ai@4.1.0-beta.60//writeToolOutputToUI"
+      }
+    },
+    "src/workflows/tools/save-products.ts": {
+      "persistProductUpdates": {
+        "stepId": "step//./src/workflows/tools/save-products//persistProductUpdates"
+      }
+    },
+    "node_modules/@workflow/ai/dist/agent/do-stream-step.js": {
+      "doStreamStep": {
+        "stepId": "step//@workflow/ai@4.1.0-beta.60//doStreamStep"
+      }
+    },
+    "src/workflows/tools/get-brand-voice.ts": {
+      "executeGetBrandVoice": {
+        "stepId": "step//./src/workflows/tools/get-brand-voice//executeGetBrandVoice"
+      }
+    },
+    "node_modules/workflow/dist/stdlib.js": {
+      "fetch": {
+        "stepId": "step//workflow@4.2.0-beta.76//fetch"
+      }
+    },
+    "src/workflows/tools/save-categories.ts": {
+      "persistCategoryUpdates": {
+        "stepId": "step//./src/workflows/tools/save-categories//persistCategoryUpdates"
+      }
+    },
+    "node_modules/@workflow/ai/dist/agent/durable-agent.js": {
+      "closeStream": {
+        "stepId": "step//@workflow/ai/agent@4.1.0-beta.60//closeStream"
+      },
+      "convertChunksToUIMessages": {
+        "stepId": "step//@workflow/ai/agent@4.1.0-beta.60//convertChunksToUIMessages"
+      },
+      "writeFinishChunk": {
+        "stepId": "step//@workflow/ai/agent@4.1.0-beta.60//writeFinishChunk"
+      }
+    },
+    "src/workflows/tools/generate-descriptions.ts": {
+      "emitPendingItems": {
+        "stepId": "step//./src/workflows/tools/generate-descriptions//emitPendingItems"
+      },
+      "generateSingleDescription": {
+        "stepId": "step//./src/workflows/tools/generate-descriptions//generateSingleDescription"
+      }
+    },
+    "src/workflows/tools/get-categories.ts": {
+      "executeGetCategories": {
+        "stepId": "step//./src/workflows/tools/get-categories//executeGetCategories"
+      }
+    },
+    "src/workflows/tools/get-products.ts": {
+      "executeGetProducts": {
+        "stepId": "step//./src/workflows/tools/get-products//executeGetProducts"
+      }
+    },
+    "src/workflows/tools/generate-seo-data.ts": {
+      "emitPendingItems": {
+        "stepId": "step//./src/workflows/tools/generate-seo-data//emitPendingItems"
+      },
+      "generateSingleSeoData": {
+        "stepId": "step//./src/workflows/tools/generate-seo-data//generateSingleSeoData"
+      }
+    }
+  },
+  "workflows": {
+    "src/workflows/catalog-agent.ts": {
+      "catalogAgentWorkflow": {
+        "workflowId": "workflow//./src/workflows/catalog-agent//catalogAgentWorkflow",
+        "graph": {
+          "nodes": [
+            {
+              "id": "start",
+              "type": "workflowStart",
+              "data": {
+                "label": "Start: catalogAgentWorkflow",
+                "nodeKind": "workflow_start"
+              }
+            },
+            {
+              "id": "node_0",
+              "type": "agent",
+              "data": {
+                "label": "DurableAgent",
+                "nodeKind": "agent"
+              },
+              "metadata": {
+                "isStepReference": true,
+                "referenceContext": "DurableAgent"
+              }
+            },
+            {
+              "id": "end",
+              "type": "workflowEnd",
+              "data": {
+                "label": "Return",
+                "nodeKind": "workflow_end"
+              }
+            }
+          ],
+          "edges": [
+            {
+              "id": "e_start_node_0",
+              "source": "start",
+              "target": "node_0",
+              "type": "default"
+            },
+            {
+              "id": "e_node_0_end",
+              "source": "node_0",
+              "target": "end",
+              "type": "default"
+            }
+          ]
+        }
+      }
+    }
+  },
+  "classes": {}
+}
