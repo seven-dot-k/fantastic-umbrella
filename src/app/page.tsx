@@ -1,17 +1,9 @@
-import dynamic from "next/dynamic";
-
-// PIXIJS requires browser WebGL/WebGPU APIs; disable SSR for the entire shell.
-const GameInterface = dynamic(
-  () =>
-    import("@/components/game/game-interface").then((mod) => ({
-      default: mod.GameInterface,
-    })),
-  { ssr: false },
-);
+import GameInterfaceClient from "@/components/game/game-interface-client";
 
 export default function Home() {
+  // Stub props; the bridge plan will wire real game state and callbacks.
   return (
-    <GameInterface
+    <GameInterfaceClient
       personas={[]}
       clues={[]}
       dialogueText=""
