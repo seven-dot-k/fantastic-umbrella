@@ -1,163 +1,125 @@
-# CatalogManager AI
+# Murder Mystery AI
 
-An AI-powered e-commerce catalog content optimizer built on **Vercel Workflows** and the **Vercel AI SDK**. CatalogManager AI uses a Durable Agent to orchestrate multi-turn conversations where catalog operators can generate, review, edit, and approve product descriptions and SEO metadata — all guided by brand voice.
+An AI-powered murder mystery detective game built on **Vercel Workflows** and the **Vercel AI SDK**. Players take on the role of a detective, interrogating AI-driven suspects to uncover a murderer. Each persona is a DurableAgent with unique secrets, alibis, and personalities, all orchestrated through a single parent workflow.
 
 ### → [Architectural Decisions](#architectural-decisions)
 
-
-
 ## Features
 
-- **Multi-turn conversational AI** — Chat naturally with the agent across multiple turns within a single persistent workflow session
-- **Product & category description generation** — Bulk-generate short and long descriptions aligned to your brand voice
-- **SEO metadata optimization** — Generate meta titles and meta descriptions for products and categories
-- **Human-in-the-loop approval** — Review proposed changes in a side panel, edit inline, and approve before any data is saved
-- **Brand voice consistency** — The agent retrieves your brand voice guidelines before generating any content
-- **Session persistence & resumption** — Share or revisit sessions via URL, with automatic reconnection to in-progress workflows
-- **Real-time streaming updates** — Watch content generation progress item-by-item with status indicators (Pending, In Progress, Done)
-
-![CatalogManager demo flow](specs/demo-flow.gif)
+- Multi-turn suspect interrogation with AI-powered personas that stay in character
+- Procedurally generated murder mystery scenarios with suspects, secrets, and alibis
+- Real-time streaming updates as suspects respond, react, and emote
+- Per-persona tools for checking emotional state and triggering visible events
+- Game state management with mood, sanity, and event tracking across suspects
+- Session persistence and resumption via URL with automatic reconnection
 
 ## Vercel Technology
 
-### Vercel Workflows with Durable Agent
+### Vercel Workflows with Parent-Child Composition
 
-The core of the application is a **Vercel Workflow** (`workflow` v4.2.0-beta) that manages the entire conversation lifecycle. The workflow is defined in [`src/workflows/catalog-agent.ts`](src/workflows/catalog-agent.ts) using the `"use workflow"` directive, and is integrated into Next.js via `withWorkflow()` in `next.config.ts`.
+The application centers on a **Vercel Workflow** (`workflow` v4.2.0-beta) that manages the entire game lifecycle. The parent workflow `playGameWorkflow` in [`src/workflows/play-game.ts`](src/workflows/play-game.ts) is defined with the `"use workflow"` directive and integrated into Next.js via `withWorkflow()` in `next.config.ts`.
 
-**DurableAgent** from `@workflow/ai/agent` provides a stateful, resumable AI agent that persists across HTTP requests. The agent is initialized once per session with a system prompt and seven tools, then runs in a loop — processing messages, streaming responses, and waiting for the next user input via a hook:
+The parent workflow generates the murder scenario, publishes game state, then enters an event loop listening for game events via `gameEventHook`. When a player sends a chat message to a persona, the parent spawns a child `personaChatWorkflow` via **direct await (flattening)**. The child's steps execute inline within the parent's context, appearing in the parent's event log as if called directly:
 
 ```ts
-const agent = new DurableAgent({
-  model: "anthropic/claude-sonnet-4-6",
-  instructions: SYSTEM_PROMPT,
-  tools: catalogTools,
-});
-
-while (true) {
-  const result = await agent.stream({ messages, writable, preventClose: true });
-  messages.push(...result.messages);
-  const { message: followUp } = await hook; // pause until next user message
-  if (followUp === "/done") break;
-  messages.push({ role: "user", content: followUp });
+// Parent event loop handles chat messages
+case "chat-message": {
+  const result = await personaChatWorkflow({
+    gameId, personaId, personaName, personaSecret,
+    messages,          // past messages for THIS persona only
+    writable,          // persona-namespaced stream
+    currentGameState,  // latest game state
+  });
+  messages.push(...result.newMessages);
 }
 ```
 
-**Workflow Hooks** enable two key interaction patterns:
+The parent tracks all per-persona state (message histories, turn counts, step counts) in Maps, and each persona writes to its own namespaced stream (`persona-{id}`).
 
-- **`chatMessageHook`** — Injects follow-up user messages into the running workflow. The frontend sends messages to `POST /api/chat/[id]`, which resumes the hook with the new input.
-- **`contentApprovalHook`** — Powers human-in-the-loop approval for save operations. When `save_products` or `save_categories` executes, it creates a hook using the **tool call ID as the resumption token**, then blocks. On the frontend, `chat-interface.tsx` scans message parts for tool UI parts whose state is not yet `"output-available"` — matching on tool names `save_products`/`save_categories` — to surface Approve/Reject buttons. When the user clicks one, the frontend POSTs to `/api/hooks/approval` with `{ toolCallId, approved }`, which resumes the hook and either persists the updates or returns a rejection message. This toolCallId-as-token pattern is what bridges the workflow's hook system to the UI without any extra mapping layer.
+`gameEventHook` handles all game-level events: `chat-message` (triggers persona child workflow), `accuse`, `end-game`, `add-event`, `update-mood`, and `end-persona-chat` (cleans up persona state).
 
-**Workflow Observability** — The workflow emits structured data markers via `getWritable()` throughout execution, including turn numbers, step counts, timing, and tool call telemetry.
+**DurableAgent** from `@workflow/ai/agent` provides a stateful AI agent for each persona. The child workflow creates a `DurableAgent` with a persona-specific system prompt and tools, runs a single turn, and returns the new messages to the parent.
+
+**Workflow Observability**: The workflow emits structured data markers via `getWritable()` throughout execution, including turn numbers, step counts, timing, and tool call telemetry.
 
 ### Vercel AI SDK
 
-The application uses **AI SDK** v6 (`ai` and `@ai-sdk/react`) for structured generation, streaming, and React integration.
+The application uses **AI SDK** v6 (`ai` and `@ai-sdk/react`) for agent interaction, streaming, and React integration.
 
-**Multi-model strategy:**
-- **Claude Sonnet 4.6** (`anthropic/claude-sonnet-4-6`) — Powers the DurableAgent for complex reasoning, tool orchestration, and multi-turn conversation
-- **Claude Haiku 4.5** (`anthropic/claude-haiku-4-5`) — Used by generation tools (`generate_descriptions`, `generate_seo_data`) for fast, cost-efficient content creation with structured output via `Output.object()` and Zod schemas
-
-**Frontend integration:**
+- **Claude Sonnet 4.6** (`anthropic/claude-sonnet-4-6`) powers each persona's DurableAgent for in-character reasoning and tool use
 - `useChat` from `@ai-sdk/react` with `WorkflowChatTransport` from `@workflow/ai` provides workflow-aware chat state management
 - `createUIMessageStreamResponse` enables token-level streaming from API routes
-- Data parts (`data-product-content`, `data-category-content`) stream real-time status updates to the frontend, where they are aggregated into a unified review panel
+- Data workflow markers stream real-time status updates, game state, and turn observability to the frontend
 
 ### Tools as Durable Steps
 
-Tool functions marked with `"use step"` execute as durable steps within the workflow, providing reliability guarantees. The seven tools cover the full catalog optimization lifecycle:
+Persona agents have two tools, both executing as durable steps:
 
 | Tool | Purpose |
 |------|---------|
-| `get_products` | Fetch products by category or all |
-| `get_categories` | Fetch categories |
-| `get_brand_voice` | Retrieve brand voice guidelines |
-| `generate_descriptions` | Generate short + long descriptions |
-| `generate_seo_data` | Generate meta title + description |
-| `save_products` | Persist approved product updates (blocks on `contentApprovalHook`) |
-| `save_categories` | Persist approved category updates (blocks on `contentApprovalHook`) |
-
-The save tools follow a **hook-gated persistence** pattern: the tool's `execute` function creates a `contentApprovalHook` with `token: toolCallId`, then `await`s the hook — suspending the workflow. The actual persistence (`persistProductUpdates` / `persistCategoryUpdates`) only runs after the hook resumes with `approved: true`. This means the agent can call `save_products` immediately after generation, but no data is written until the human approves via the review panel.
+| `get_current_state` | Returns the persona's mood, sanity, and recent events |
+| `add_event` | Emits a visible reaction that other characters and the detective observe |
 
 ## Architecture
 
 ```
 Frontend (Next.js App Router)
-  ├── ChatInterface ─── useMultiTurnChat() ─── WorkflowChatTransport
-  │     └── ChatInput / ChatMessage
-  └── CatalogPanel ─── BulkEditTable (inline editing + approval)
+  ├── GameInterface
+  │     ├── PersonaCard (select suspect)
+  │     └── PersonaChatPanel ─── usePersonaChat() ─── WorkflowChatTransport
+  └── EventLog (global game events)
 
 API Routes
-  ├── POST /api/chat          → start(catalogAgentWorkflow)
-  ├── POST /api/chat/[id]     → chatMessageHook.resume()
-  ├── GET  /api/chat/[id]/stream → reconnect to workflow stream
-  └── POST /api/hooks/approval → contentApprovalHook.resume()
+  ├── POST /api/run                              → start(playGameWorkflow)
+  ├── GET  /api/run/[gameId]/state               → read game-state namespace
+  ├── POST /api/run/[gameId]/event               → gameEventHook.resume() [accuse, end-game, end-persona-chat]
+  ├── POST /api/agent/[personaId]/stream          → gameEventHook.resume() [chat-message] + persona stream
+  ├── GET  /api/agent/[personaId]/stream/[gameId] → reconnect to persona namespace
+  └── POST /api/agent/[personaId]/stream/[gameId] → gameEventHook.resume() [chat-message follow-up]
 
 Workflow (Vercel Workflows)
-  └── catalogAgentWorkflow
-        ├── DurableAgent (Claude Sonnet 4.6)
-        ├── 7 tools (fetch, generate, save)
-        ├── chatMessageHook (multi-turn)
-        └── contentApprovalHook (human-in-the-loop)
+  └── playGameWorkflow (parent)
+        ├── Scenario generation steps (mock)
+        ├── gameEventHook event loop
+        ├── Per-persona namespaced streams
+        └── personaChatWorkflow (child, flattened via direct await)
+              ├── DurableAgent (Claude Sonnet 4.6)
+              └── Tools: get_current_state, add_event
 ```
 
 ## Architectural Decisions
 
-### 1. Single Workflow Per Session
-Each user session is a single, long-running `catalogAgentWorkflow` instance. The entire conversation — all turns, all tool calls, all state — lives inside one workflow run. Follow-up messages are injected via `chatMessageHook` rather than starting a new run.
+### 1. Single Parent Workflow Per Game
+
+Each game session is a single, long-running `playGameWorkflow` instance. The entire game lifecycle (scenario generation, state management, all persona conversations) lives inside one workflow run. Chat messages, accusations, and other events are injected via `gameEventHook` rather than starting new runs.
 
 ---
 
-### 2. Dual-Model Strategy: Orchestrator vs. Generator
-Two separate Claude models serve distinct roles:
+### 2. Parent-Child Workflow Composition via Direct Await
 
-- **Claude Sonnet 4.6** — Runs the `DurableAgent`. Handles multi-step reasoning, tool orchestration, and interpreting ambiguous user intent across multi-turn conversations. Used for its stronger reasoning capability.
-- **Claude Haiku 4.5** — Runs inside `generate_descriptions` and `generate_seo_data`. Handles fast, structured content generation via `Output.object()` and a Zod schema. Used for cost efficiency and speed on repetitive generation tasks.
+Persona conversations run as child workflows called via `await personaChatWorkflow(...)` (direct await / flattening). The child's steps execute inline within the parent's event log.
 
-**Rationale:** Separating orchestration from generation allows each layer to use the right model for the right job. Haiku is called once per item in a loop; using Sonnet here would be unnecessarily expensive.
+This approach keeps a single unified event log for the entire game while allowing persona logic to live in a separate, focused module. The parent maintains per-persona message histories in Maps and passes only the relevant persona's messages to each child invocation.
 
----
-
-### 3. `toolCallId` as the Approval Resumption Token
-
-When `save_products` or `save_categories` runs, it creates a `contentApprovalHook` using the tool call's own `toolCallId` as the token:
-
-```ts
-const hook = contentApprovalHook.create({ token: toolCallId });
-```
-
-The frontend identifies pending save tool calls by scanning message parts for `save_products`/`save_categories` without output, then POSTs the same `toolCallId` to `/api/hooks/approval` to resume the hook.
-
-This eliminates any need for a separate ID mapping layer — the same identifier used by the AI SDK to track tool calls is reused as the workflow resumption key.
-
-Note: The name "save*" is misleading since the tool doesn't immediately save, created it before fully understanding the approval hook flow 
+**Rejected alternative:** Starting separate workflow runs via `start()` required cross-workflow communication through hooks and stream reading, adding complexity for state synchronization.
 
 ---
 
-### 4. Agent Calls Save Immediately — Approval Is a Workflow Concern
-The system prompt instructs the agent to call `save_products` or `save_categories` immediately after content generation.
-The save tool itself suspends, indefinitely, via the approval hook until the human acts in the review panel.
+### 3. Per-Persona Namespaced Streams
 
-Note: The name "save*" is misleading since the tool doesn't immediately save, created it before fully understanding the approval hook flow 
----
-
-### 5. Per-Item Generation as Durable Steps
-Each call to `generateSingleDescription` and `generateSingleSeoData` is a `"use step"` function inside the generation tools. This means:
-- Each item is independently retried on failure (transient LLM errors don't restart the whole batch)
-- Per-item progress is observable in the Vercel Workflows dashboard
-- The workflow can resume from the last incomplete item after a crash
-
-**Rejected alternative:** Processing all items in a single LLM call would be faster but loses per-item retry guarantees and makes structured output harder to validate.
+Each persona gets a dedicated namespaced writable stream (`persona-{id}`) within the parent workflow. This allows the client to connect to a specific persona's conversation stream without receiving data from other personas or game-level events.
 
 ---
 
-### 6. Streaming Data Parts for Real-Time UI Status
-Generation tools emit custom `UIMessageChunk` data parts (`data-product-content`, `data-category-content`) with a status field (`Pending → InProgress → Done`) as each item is processed:
+### 4. Single-Turn Child Workflow
 
-```ts
-writer.write({ type: "data-product-content", id: `${toolCallId}-${sku}`, data: { status: "InProgress", ... } });
-```
+The persona child workflow handles exactly one agent turn per invocation. The parent manages the multi-turn loop through its event loop, calling the child again for each new message. This keeps the child stateless and makes the parent the single source of truth for conversation state.
 
-The frontend aggregates these parts into a unified catalog panel without polling or a separate state management layer. The AI SDK's data parts streaming is the only transport used.
+---
+
+### 5. Per-Persona State Cleanup via `end-persona-chat`
+
+When the client ends a persona conversation, it sends an `end-persona-chat` event to the parent workflow. The parent closes that persona's namespaced stream and clears the associated Maps (messages, turn counts, step counts). This frees resources while the game continues running for other personas.
 
 ---
 

@@ -1,9 +1,14 @@
 // import { generateText, Output } from "ai";
 import { getWritable, getWorkflowMetadata } from "workflow";
-import { type UIMessageChunk } from "ai";
+import { type UIMessageChunk, type ModelMessage } from "ai";
 import { gameEventHook } from "./hooks/game-event";
+import { personaChatWorkflow } from "./persona-chat";
 import { fullGameStateStore } from '@/lib/game-state-store'
 import { fallbackGameScenario } from "@/lib/data/game-scenario";
+import {
+  writeUserMessageMarker,
+  writeStreamClose,
+} from "./steps/writer";
 import type {
   FullGameState,
   GameState,
@@ -101,13 +106,16 @@ async function saveFullGameState(gameId: string, state: FullGameState) {
  * Game state is published to a namespaced stream ("game-state") so clients can
  * read it via GET /api/run/[gameId]/state.
  *
- * The workflow listens for game events (accuse, add-event, get-state, end-game)
- * via the gameEventHook.
+ * The workflow listens for game events (accuse, add-event, get-state, end-game,
+ * chat-message) via the gameEventHook. Chat messages trigger a child
+ * personaChatWorkflow via direct await (flattening) — the child's steps execute
+ * inline within this workflow's context.
  */
 export async function playGameWorkflow(initialState: FullGameState) {
   "use workflow";
 
-  const { workflowRunId: gameId } = getWorkflowMetadata();
+  const { workflowRunId: gameId, workflowStartedAt } = getWorkflowMetadata();
+  const workflowStartTime = workflowStartedAt.getTime();
   // Default stream — flows through run.readable to the client
   const writable = getWritable<UIMessageChunk>();
   // Namespaced streams for later access by other routes
@@ -167,10 +175,17 @@ export async function playGameWorkflow(initialState: FullGameState) {
   // Publish secret state (only readable server-side, never exposed to client)
   await writeSecretState(secretWritable, fullState.secret);
 
+  // Per-persona chat state: message histories, turn counts, step counts, and writables
+  const personaMessages = new Map<string, ModelMessage[]>();
+  const personaTurnCounts = new Map<string, number>();
+  const personaStepCounts = new Map<string, number>();
+  const personaWritables = new Map<string, WritableStream<UIMessageChunk>>();
+
   // Step 4: Event loop — listen for game events until game ends
   const hook = gameEventHook.create({ token: gameId });
 
   for await (const event of hook) {
+    console.log(`[PlayGame] Received event:`, event);
     if (fullState.public.status !== "active") break;
 
     switch (event.type) {
@@ -228,6 +243,134 @@ export async function playGameWorkflow(initialState: FullGameState) {
         break;
       }
 
+      case "chat-message": {
+        if (event.personaId && event.message) {
+          const personaId = event.personaId;
+          const persona = fullState.public.personas.find(
+            (p) => p.id === personaId,
+          );
+          if (!persona) break;
+
+          const personaSecret = fullState.secret.personaSecrets[personaId];
+          if (!personaSecret) break;
+
+          // Get or create per-persona namespaced writable
+          if (!personaWritables.has(personaId)) {
+            personaWritables.set(
+              personaId,
+              getWritable<UIMessageChunk>({ namespace: `persona-${personaId}` }),
+            );
+          }
+          const personaWritable = personaWritables.get(personaId)!;
+
+          // Get or initialize per-persona message history
+          if (!personaMessages.has(personaId)) {
+            personaMessages.set(personaId, []);
+          }
+          const messages = personaMessages.get(personaId)!;
+
+          // Get turn and step counts
+          const turnNumber = (personaTurnCounts.get(personaId) ?? 0) + 1;
+          personaTurnCounts.set(personaId, turnNumber);
+          const totalStepCount = personaStepCounts.get(personaId) ?? 0;
+
+          const isFirstTurn = turnNumber === 1;
+
+          if (isFirstTurn) {
+            // First turn: write greeting marker and set up initial prompt
+            const greeting = `*${persona.name} sits down across from you, looking ${persona.mood ?? "uneasy"}.*`;
+            messages.push({
+              role: "user",
+              content: "The detective approaches you for questioning. Introduce yourself briefly and wait for their questions.",
+            });
+
+            await writeUserMessageMarker(
+              personaWritable,
+              greeting,
+              `system-${gameId}-${personaId}-greeting`,
+              {
+                turnNumber: 1,
+                turnStartedAt: workflowStartTime,
+                workflowRunId: gameId,
+                workflowStartedAt: workflowStartTime,
+                isFirstTurn: true,
+              },
+            );
+          } else {
+            // Follow-up: write user message marker and add to history
+            const followUpId = `user-${gameId}-${personaId}-${turnNumber}`;
+            await writeUserMessageMarker(
+              personaWritable,
+              event.message,
+              followUpId,
+              {
+                turnNumber,
+                turnStartedAt: Date.now(),
+                workflowRunId: gameId,
+                workflowStartedAt: workflowStartTime,
+                isFirstTurn: false,
+              },
+            );
+            messages.push({ role: "user", content: event.message });
+          }
+
+          // Spawn child persona workflow via direct await (flattening)
+          const result = await personaChatWorkflow({
+            gameId,
+            personaId,
+            personaName: persona.name,
+            personaDescription: persona.description,
+            personaSecret,
+            isMurderer: fullState.secret.murdererId === personaId,
+            scenario: {
+              victimName: fullState.public.scenario.victimName,
+              setting: fullState.public.scenario.setting,
+              timeOfDeath: fullState.public.scenario.timeOfDeath,
+            },
+            currentGameState: fullState.public,
+            messages,
+            writable: personaWritable,
+            turnNumber,
+            totalStepCount,
+            workflowStartedAt: workflowStartTime,
+            onGameStateUpdate: (updatedState: GameState) => {
+              fullState.public = updatedState;
+            },
+          });
+
+          // Store new messages from the agent response
+          messages.push(...result.newMessages);
+          personaStepCounts.set(personaId, result.totalStepCount);
+
+          // Sync game state updates from child workflow
+          if (result.updatedGameState) {
+            fullState.public = result.updatedGameState;
+            await writeGameState(gameStateWritable, fullState.public);
+          }
+        }
+        break;
+      }
+
+      case "end-persona-chat": {
+        if (event.personaId) {
+          const personaId = event.personaId;
+          const personaWritable = personaWritables.get(personaId);
+          if (personaWritable) {
+            const turnCount = personaTurnCounts.get(personaId) ?? 0;
+            await writeStreamClose(personaWritable, {
+              workflowRunId: gameId,
+              totalDurationMs: Date.now() - workflowStartTime,
+              turnCount,
+            });
+            personaWritables.delete(personaId);
+            personaMessages.delete(personaId);
+            personaTurnCounts.delete(personaId);
+            personaStepCounts.delete(personaId);
+          }
+        }
+        break;
+      }
+
       case "accuse": {
         if (event.personaId) {
           const isCorrect = event.personaId === fullState.secret.murdererId;
@@ -245,6 +388,16 @@ export async function playGameWorkflow(initialState: FullGameState) {
     }
 
     if (fullState.public.status !== "active") break;
+  }
+
+  // Close any persona streams
+  for (const [personaId, personaWritable] of personaWritables) {
+    const turnCount = personaTurnCounts.get(personaId) ?? 0;
+    await writeStreamClose(personaWritable, {
+      workflowRunId: gameId,
+      totalDurationMs: Date.now() - workflowStartTime,
+      turnCount,
+    });
   }
 
   // Close the state stream

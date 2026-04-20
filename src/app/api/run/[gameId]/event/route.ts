@@ -3,7 +3,7 @@ import { HookNotFoundError } from "workflow/internal/errors";
 import { z } from "zod";
 
 const eventSchema = z.object({
-  type: z.enum(["accuse", "end-game"]),
+  type: z.enum(["accuse", "end-game", "end-persona-chat"]),
   personaId: z.string().optional(),
 });
 

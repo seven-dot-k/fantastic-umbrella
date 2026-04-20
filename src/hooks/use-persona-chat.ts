@@ -37,8 +37,15 @@ export interface UsePersonaChatReturn {
 
 /**
  * Hook for chatting with a specific persona in a murder mystery game.
- * Routes to /api/agent/[personaId]/stream for new chats and
- * /api/agent/[personaId]/stream/[runId] for follow-ups.
+ *
+ * The persona chat now runs as a child workflow inside PlayGame. The stream
+ * comes from the game workflow's persona-namespaced readable. The runId
+ * stored here is the gameId, since all persona chats share the game workflow.
+ *
+ * Routes:
+ * - POST /api/agent/[personaId]/stream — send first chat-message event
+ * - GET  /api/agent/[personaId]/stream/[gameId] — reconnect to persona stream
+ * - POST /api/agent/[personaId]/stream/[gameId] — send follow-up chat-message
  */
 export function usePersonaChat(
   personaId: string,
@@ -267,21 +274,22 @@ export function usePersonaChat(
       // Expected
     }
 
+    // Notify the parent PlayGame workflow to clean up this persona's state
     if (currentRunId) {
       try {
         await fetch(
-          `/api/agent/${encodeURIComponent(personaId)}/stream/${encodeURIComponent(currentRunId)}`,
+          `/api/run/${encodeURIComponent(gameId)}/event`,
           {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ message: "/done" }),
+            body: JSON.stringify({ type: "end-persona-chat", personaId }),
           },
         );
       } catch {
-        // Workflow will timeout
+        // Game workflow may have ended — that's okay
       }
     }
-  }, [runId, personaId, storageKey, setMessages, stop]);
+  }, [runId, gameId, personaId, storageKey, setMessages, stop]);
 
   return {
     messages,

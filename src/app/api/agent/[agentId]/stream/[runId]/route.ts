@@ -1,6 +1,6 @@
 import { createUIMessageStreamResponse } from "ai";
 import { getRun } from "workflow/api";
-import { chatMessageHook } from "@/workflows/hooks/chat-message";
+import { gameEventHook } from "@/workflows/hooks/game-event";
 import { HookNotFoundError, HookConflictError } from "workflow/internal/errors";
 import { z } from "zod";
 
@@ -10,31 +10,40 @@ const messageSchema = z.object({
 
 /**
  * GET /api/agent/[agentId]/stream/[runId] — Reconnect to an existing persona chat stream.
+ *
+ * The runId is the gameId. The persona stream is read from the game workflow's
+ * persona-namespaced stream.
  */
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ agentId: string; runId: string }> },
 ) {
-  const { runId } = await params;
+  const { agentId: personaId, runId: gameId } = await params;
   const { searchParams } = new URL(request.url);
   const startIndexParam = searchParams.get("startIndex");
   const startIndex =
     startIndexParam !== null ? parseInt(startIndexParam, 10) : undefined;
 
-  const run = getRun(runId);
-  const stream = run.getReadable({ startIndex });
+  const run = getRun(gameId);
+  const stream = run.getReadable({
+    namespace: `persona-${personaId}`,
+    startIndex,
+  });
 
   return createUIMessageStreamResponse({ stream });
 }
 
 /**
  * POST /api/agent/[agentId]/stream/[runId] — Send a follow-up message to a persona chat.
+ *
+ * The runId is the gameId. The message is sent as a "chat-message" event to
+ * the PlayGame workflow's hook.
  */
 export async function POST(
   req: Request,
   { params }: { params: Promise<{ agentId: string; runId: string }> },
 ) {
-  const { runId } = await params;
+  const { agentId: personaId, runId: gameId } = await params;
 
   let body;
   try {
@@ -54,7 +63,11 @@ export async function POST(
   }
 
   try {
-    await chatMessageHook.resume(runId, { message });
+    await gameEventHook.resume(gameId, {
+      type: "chat-message",
+      personaId,
+      message,
+    });
     return Response.json({ success: true });
   } catch (error) {
     if (HookNotFoundError.is(error)) {
@@ -70,7 +83,7 @@ export async function POST(
       );
     }
     const message = error instanceof Error ? error.message : String(error);
-    console.error(`[api/agent/stream/${runId}] Error resuming hook:`, message);
+    console.error(`[api/agent/stream/${gameId}] Error resuming hook:`, message);
     return Response.json(
       { error: "Failed to send message", details: message },
       { status: 500 },

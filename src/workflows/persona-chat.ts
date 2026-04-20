@@ -1,18 +1,13 @@
 import { type UIMessageChunk, type ModelMessage } from "ai";
 import { DurableAgent } from "@workflow/ai/agent";
-import { getWritable, getWorkflowMetadata } from "workflow";
-import { chatMessageHook } from "./hooks/chat-message";
-import { gameEventHook } from "./hooks/game-event";
 import {
   writeUserMessageMarker,
-  writeStreamClose,
   writeTurnEnd,
 } from "./steps/writer";
 import { createGetCurrentStateTool } from "./tools/get-current-state";
 import { createAddEventTool } from "./tools/add-event";
 import type { GameState, GameEvent, PersonaSecret } from "./schemas/game-state";
 
-const MAX_TURNS = 50;
 const MAX_STEPS_PER_TURN = 10;
 
 function buildPersonaSystemPrompt(
@@ -69,11 +64,14 @@ If the detective accuses you directly, firmly deny it and point to your alibi.`;
 }
 
 /**
- * PersonaChat workflow — handles the detective's conversation with one persona.
+ * PersonaChat workflow — handles a single turn of conversation with one persona.
  *
- * Each persona gets their own workflow run with a unique system prompt derived
- * from the game's secret state. The persona has access to tools that let them
- * check the game state and emit visible events.
+ * Called as a child workflow from PlayGame via direct await (flattening).
+ * The child's steps execute inline within the parent workflow's context.
+ *
+ * Accepts all persona configuration, the conversation history for this persona,
+ * a writable stream for output, and current game state. Returns the new messages
+ * produced by the agent so the parent can store them.
  */
 export async function personaChatWorkflow(input: {
   gameId: string;
@@ -83,16 +81,18 @@ export async function personaChatWorkflow(input: {
   personaSecret: PersonaSecret;
   isMurderer: boolean;
   scenario: { victimName: string; setting: string; timeOfDeath: string };
-  initialGameState: GameState;
+  currentGameState: GameState;
+  messages: ModelMessage[];
+  writable: WritableStream<UIMessageChunk>;
+  turnNumber: number;
+  totalStepCount: number;
+  workflowStartedAt: number;
+  onGameStateUpdate: (state: GameState) => void;
 }) {
   "use workflow";
 
-  const { workflowRunId: runId, workflowStartedAt } = getWorkflowMetadata();
-  const writable = getWritable<UIMessageChunk>();
-  const workflowStartTime = workflowStartedAt.getTime();
-
-  // Mutable game state — updated when the persona checks state
-  let currentGameState: GameState = input.initialGameState;
+  let currentGameState: GameState = input.currentGameState;
+  const writable = input.writable;
 
   const systemPrompt = buildPersonaSystemPrompt(
     input.personaName,
@@ -129,19 +129,8 @@ export async function personaChatWorkflow(input: {
               : p,
           ),
         };
-
-        // Fire-and-forget: notify the PlayGame workflow about the event
-        gameEventHook
-          .resume(input.gameId, {
-            type: "add-event",
-            personaId: input.personaId,
-            description: event.description,
-            mood: moodUpdate?.mood,
-            sanityDelta: moodUpdate?.sanityDelta,
-          })
-          .catch(() => {
-            // PlayGame workflow may have ended — that's okay
-          });
+        // Notify the parent about the state update
+        input.onGameStateUpdate(currentGameState);
       },
     ),
   };
@@ -152,92 +141,52 @@ export async function personaChatWorkflow(input: {
     tools,
   });
 
-  // Create the chat hook for follow-up messages
-  const hook = chatMessageHook.create({ token: runId });
+  const messages = [...input.messages];
+  const turnStartTime = Date.now();
 
-  const messages: ModelMessage[] = [];
-  let turnNumber = 0;
-  let totalStepCount = 0;
-
-  // Write an introductory greeting from the persona
-  const greeting = `*${input.personaName} sits down across from you, looking ${input.initialGameState.personas.find((p) => p.id === input.personaId)?.mood ?? "uneasy"}.*`;
-  messages.push({ role: "user", content: "The detective approaches you for questioning. Introduce yourself briefly and wait for their questions." });
-
-  while (turnNumber < MAX_TURNS) {
-    turnNumber++;
-    const turnStartTime = Date.now();
-
-    if (turnNumber === 1) {
-      // Write a marker for the greeting context
-      await writeUserMessageMarker(writable, greeting, `system-${runId}-greeting`, {
-        turnNumber: 1,
-        turnStartedAt: workflowStartTime,
-        workflowRunId: runId,
-        workflowStartedAt: workflowStartTime,
-        isFirstTurn: true,
-      });
-    }
-
-    let result;
-    try {
-      result = await agent.stream({
-        messages,
-        writable,
-        preventClose: true,
-        sendStart: turnNumber === 1,
-        sendFinish: false,
-        maxSteps: MAX_STEPS_PER_TURN,
-      });
-    } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : String(error);
-      console.error(
-        `[persona:${input.personaId}] Agent stream failed on turn ${turnNumber}:`,
-        errorMessage,
-      );
-      break;
-    }
-
-    const stepsForTurn = result.steps.map((step, index) => ({
-      stepNumber: totalStepCount + index + 1,
-      toolCalls: step.toolCalls?.map((tc) => tc.toolName) || [],
-      finishReason: step.finishReason || "unknown",
-    }));
-
-    totalStepCount = await writeTurnEnd(
+  let result;
+  try {
+    result = await agent.stream({
+      messages,
       writable,
-      turnNumber,
-      Date.now() - turnStartTime,
-      stepsForTurn,
-      totalStepCount,
-    );
-
-    messages.push(...result.messages);
-
-    // Wait for the next detective message
-    const { message: followUp } = await hook;
-
-    if (followUp === "/done") break;
-
-    const nextTurnNumber = turnNumber + 1;
-    const followUpId = `user-${runId}-${nextTurnNumber}`;
-
-    await writeUserMessageMarker(writable, followUp, followUpId, {
-      turnNumber: nextTurnNumber,
-      turnStartedAt: Date.now(),
-      workflowRunId: runId,
-      workflowStartedAt: workflowStartTime,
-      isFirstTurn: false,
+      preventClose: true,
+      sendStart: input.turnNumber === 1,
+      sendFinish: false,
+      maxSteps: MAX_STEPS_PER_TURN,
     });
-
-    messages.push({ role: "user", content: followUp });
+  } catch (error) {
+    const errorMessage =
+      error instanceof Error ? error.message : String(error);
+    console.error(
+      `[persona:${input.personaId}] Agent stream failed on turn ${input.turnNumber}:`,
+      errorMessage,
+    );
+    return {
+      personaId: input.personaId,
+      newMessages: [] as ModelMessage[],
+      totalStepCount: input.totalStepCount,
+      updatedGameState: currentGameState,
+    };
   }
 
-  await writeStreamClose(writable, {
-    workflowRunId: runId,
-    totalDurationMs: Date.now() - workflowStartTime,
-    turnCount: turnNumber,
-  });
+  const stepsForTurn = result.steps.map((step, index) => ({
+    stepNumber: input.totalStepCount + index + 1,
+    toolCalls: step.toolCalls?.map((tc) => tc.toolName) || [],
+    finishReason: step.finishReason || "unknown",
+  }));
 
-  return { personaId: input.personaId, turnCount: turnNumber };
+  const newTotalStepCount = await writeTurnEnd(
+    writable,
+    input.turnNumber,
+    Date.now() - turnStartTime,
+    stepsForTurn,
+    input.totalStepCount,
+  );
+
+  return {
+    personaId: input.personaId,
+    newMessages: result.messages as ModelMessage[],
+    totalStepCount: newTotalStepCount,
+    updatedGameState: currentGameState,
+  };
 }
