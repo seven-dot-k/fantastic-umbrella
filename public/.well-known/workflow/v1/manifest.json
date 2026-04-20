@@ -1,0 +1,166 @@
+{
+  "version": "1.0.0",
+  "steps": {
+    "node_modules/workflow/dist/internal/builtins.js": {
+      "__builtin_response_array_buffer": {
+        "stepId": "__builtin_response_array_buffer"
+      },
+      "__builtin_response_json": {
+        "stepId": "__builtin_response_json"
+      },
+      "__builtin_response_text": {
+        "stepId": "__builtin_response_text"
+      }
+    },
+    "src/workflows/steps/writer.ts": {
+      "writeStreamClose": {
+        "stepId": "step//./src/workflows/steps/writer//writeStreamClose"
+      },
+      "writeTurnEnd": {
+        "stepId": "step//./src/workflows/steps/writer//writeTurnEnd"
+      },
+      "writeUserMessageMarker": {
+        "stepId": "step//./src/workflows/steps/writer//writeUserMessageMarker"
+      }
+    },
+    "node_modules/workflow/dist/stdlib.js": {
+      "fetch": {
+        "stepId": "step//workflow@4.2.0-beta.76//fetch"
+      }
+    },
+    "node_modules/@workflow/ai/dist/agent/stream-text-iterator.js": {
+      "writeToolOutputToUI": {
+        "stepId": "step//@workflow/ai@4.1.0-beta.60//writeToolOutputToUI"
+      }
+    },
+    "node_modules/@workflow/ai/dist/agent/do-stream-step.js": {
+      "doStreamStep": {
+        "stepId": "step//@workflow/ai@4.1.0-beta.60//doStreamStep"
+      }
+    },
+    "src/workflows/play-game.ts": {
+      "generatePersonasStep": {
+        "stepId": "step//./src/workflows/play-game//generatePersonasStep"
+      },
+      "generateScenarioStep": {
+        "stepId": "step//./src/workflows/play-game//generateScenarioStep"
+      },
+      "generateSecretsStep": {
+        "stepId": "step//./src/workflows/play-game//generateSecretsStep"
+      },
+      "getFullGameState": {
+        "stepId": "step//./src/workflows/play-game//getFullGameState"
+      },
+      "saveFullGameState": {
+        "stepId": "step//./src/workflows/play-game//saveFullGameState"
+      },
+      "writeGameState": {
+        "stepId": "step//./src/workflows/play-game//writeGameState"
+      },
+      "writeSecretState": {
+        "stepId": "step//./src/workflows/play-game//writeSecretState"
+      },
+      "writeStatusMessage": {
+        "stepId": "step//./src/workflows/play-game//writeStatusMessage"
+      }
+    },
+    "node_modules/@workflow/ai/dist/agent/durable-agent.js": {
+      "closeStream": {
+        "stepId": "step//@workflow/ai/agent@4.1.0-beta.60//closeStream"
+      },
+      "convertChunksToUIMessages": {
+        "stepId": "step//@workflow/ai/agent@4.1.0-beta.60//convertChunksToUIMessages"
+      },
+      "writeFinishChunk": {
+        "stepId": "step//@workflow/ai/agent@4.1.0-beta.60//writeFinishChunk"
+      }
+    }
+  },
+  "workflows": {
+    "src/workflows/play-game.ts": {
+      "playGameWorkflow": {
+        "workflowId": "workflow//./src/workflows/play-game//playGameWorkflow",
+        "graph": {
+          "nodes": [
+            {
+              "id": "start",
+              "type": "workflowStart",
+              "data": {
+                "label": "Start: playGameWorkflow",
+                "nodeKind": "workflow_start"
+              }
+            },
+            {
+              "id": "end",
+              "type": "workflowEnd",
+              "data": {
+                "label": "Return",
+                "nodeKind": "workflow_end"
+              }
+            }
+          ],
+          "edges": [
+            {
+              "id": "e_start_end",
+              "source": "start",
+              "target": "end",
+              "type": "default"
+            }
+          ]
+        }
+      }
+    },
+    "src/workflows/persona-chat.ts": {
+      "personaChatWorkflow": {
+        "workflowId": "workflow//./src/workflows/persona-chat//personaChatWorkflow",
+        "graph": {
+          "nodes": [
+            {
+              "id": "start",
+              "type": "workflowStart",
+              "data": {
+                "label": "Start: personaChatWorkflow",
+                "nodeKind": "workflow_start"
+              }
+            },
+            {
+              "id": "node_0",
+              "type": "agent",
+              "data": {
+                "label": "DurableAgent",
+                "nodeKind": "agent"
+              },
+              "metadata": {
+                "isStepReference": true,
+                "referenceContext": "DurableAgent"
+              }
+            },
+            {
+              "id": "end",
+              "type": "workflowEnd",
+              "data": {
+                "label": "Return",
+                "nodeKind": "workflow_end"
+              }
+            }
+          ],
+          "edges": [
+            {
+              "id": "e_start_node_0",
+              "source": "start",
+              "target": "node_0",
+              "type": "default"
+            },
+            {
+              "id": "e_node_0_end",
+              "source": "node_0",
+              "target": "end",
+              "type": "default"
+            }
+          ]
+        }
+      }
+    }
+  },
+  "classes": {}
+}
