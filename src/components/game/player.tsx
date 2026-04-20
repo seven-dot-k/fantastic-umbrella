@@ -134,13 +134,10 @@ export function Player({
     }
   });
 
+  // Initial x/y come from props; subsequent frame updates mutate the
+  // Graphics object directly via graphicsRef in useTick to avoid re-renders.
   return (
-    <pixiGraphics
-      ref={graphicsRef}
-      draw={draw}
-      x={posRef.current.x}
-      y={posRef.current.y}
-    />
+    <pixiGraphics ref={graphicsRef} draw={draw} x={spawnX} y={spawnY} />
   );
 }
 

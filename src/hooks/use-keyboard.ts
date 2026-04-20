@@ -1,25 +1,24 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useState } from "react";
 import { InputManager } from "@/lib/input-manager";
 
 /**
  * React hook that returns a stable InputManager instance, attaching its
  * keyboard listeners on mount and detaching them on unmount.
+ *
+ * Uses lazy useState initializer so the manager instance is created once
+ * per mount without accessing refs during render.
  */
 export function useKeyboard(): InputManager {
-  const manager = useRef<InputManager | null>(null);
-  if (manager.current === null) {
-    manager.current = new InputManager();
-  }
+  const [manager] = useState(() => new InputManager());
 
   useEffect(() => {
-    const instance = manager.current;
-    instance?.attach();
+    manager.attach();
     return () => {
-      instance?.detach();
+      manager.detach();
     };
-  }, []);
+  }, [manager]);
 
-  return manager.current;
+  return manager;
 }

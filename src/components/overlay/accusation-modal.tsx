@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 const MOOD_COLOR_CLASSES: Record<string, string> = {
   calm: "border-[#4a90d9]",
@@ -37,10 +37,12 @@ export function AccusationModal({
   onCancel,
 }: AccusationModalProps) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
-
-  useEffect(() => {
+  // Reset selection on close by tracking prior isOpen via derived state.
+  const [wasOpen, setWasOpen] = useState(isOpen);
+  if (wasOpen !== isOpen) {
+    setWasOpen(isOpen);
     if (!isOpen) setSelectedId(null);
-  }, [isOpen]);
+  }
 
   if (!isOpen) return null;
 
