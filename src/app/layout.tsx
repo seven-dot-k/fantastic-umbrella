@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "CatalogManager AI",
-  description: "AI-powered e-commerce catalog content optimizer",
+  title: "Murder Mystery",
+  description: "AI-powered text-based murder mystery detective game",
 };
 
 export default function RootLayout({

@@ -1,0 +1,7 @@
+{
+  "workflowFiles": [
+    "/home/kevin/repos/personal/v0-murder-mystery/src/workflows/persona-chat.ts",
+    "/home/kevin/repos/personal/v0-murder-mystery/src/workflows/play-game.ts"
+  ],
+  "serdeOnlyFiles": []
+}

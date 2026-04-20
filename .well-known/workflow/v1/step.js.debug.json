@@ -1,0 +1,15 @@
+{
+  "stepFiles": [
+    "/home/kevin/repos/personal/v0-murder-mystery/node_modules/@workflow/ai/dist/agent/do-stream-step.js",
+    "/home/kevin/repos/personal/v0-murder-mystery/node_modules/@workflow/ai/dist/agent/durable-agent.js",
+    "/home/kevin/repos/personal/v0-murder-mystery/node_modules/@workflow/ai/dist/agent/stream-text-iterator.js",
+    "/home/kevin/repos/personal/v0-murder-mystery/node_modules/workflow/dist/stdlib.js",
+    "/home/kevin/repos/personal/v0-murder-mystery/src/workflows/play-game.ts",
+    "/home/kevin/repos/personal/v0-murder-mystery/src/workflows/steps/writer.ts"
+  ],
+  "workflowFiles": [
+    "/home/kevin/repos/personal/v0-murder-mystery/src/workflows/persona-chat.ts",
+    "/home/kevin/repos/personal/v0-murder-mystery/src/workflows/play-game.ts"
+  ],
+  "serdeOnlyFiles": []
+}

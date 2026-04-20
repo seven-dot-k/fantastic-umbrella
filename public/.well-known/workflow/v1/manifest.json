@@ -23,34 +23,45 @@
         "stepId": "step//./src/workflows/steps/writer//writeUserMessageMarker"
       }
     },
-    "node_modules/@workflow/ai/dist/agent/stream-text-iterator.js": {
-      "writeToolOutputToUI": {
-        "stepId": "step//@workflow/ai@4.1.0-beta.60//writeToolOutputToUI"
-      }
-    },
-    "src/workflows/tools/save-products.ts": {
-      "persistProductUpdates": {
-        "stepId": "step//./src/workflows/tools/save-products//persistProductUpdates"
-      }
-    },
-    "node_modules/@workflow/ai/dist/agent/do-stream-step.js": {
-      "doStreamStep": {
-        "stepId": "step//@workflow/ai@4.1.0-beta.60//doStreamStep"
-      }
-    },
-    "src/workflows/tools/get-brand-voice.ts": {
-      "executeGetBrandVoice": {
-        "stepId": "step//./src/workflows/tools/get-brand-voice//executeGetBrandVoice"
-      }
-    },
     "node_modules/workflow/dist/stdlib.js": {
       "fetch": {
         "stepId": "step//workflow@4.2.0-beta.76//fetch"
       }
     },
-    "src/workflows/tools/save-categories.ts": {
-      "persistCategoryUpdates": {
-        "stepId": "step//./src/workflows/tools/save-categories//persistCategoryUpdates"
+    "src/workflows/play-game.ts": {
+      "generatePersonasStep": {
+        "stepId": "step//./src/workflows/play-game//generatePersonasStep"
+      },
+      "generateScenarioStep": {
+        "stepId": "step//./src/workflows/play-game//generateScenarioStep"
+      },
+      "generateSecretsStep": {
+        "stepId": "step//./src/workflows/play-game//generateSecretsStep"
+      },
+      "getFullGameState": {
+        "stepId": "step//./src/workflows/play-game//getFullGameState"
+      },
+      "saveFullGameState": {
+        "stepId": "step//./src/workflows/play-game//saveFullGameState"
+      },
+      "writeGameState": {
+        "stepId": "step//./src/workflows/play-game//writeGameState"
+      },
+      "writeSecretState": {
+        "stepId": "step//./src/workflows/play-game//writeSecretState"
+      },
+      "writeStatusMessage": {
+        "stepId": "step//./src/workflows/play-game//writeStatusMessage"
+      }
+    },
+    "node_modules/@workflow/ai/dist/agent/stream-text-iterator.js": {
+      "writeToolOutputToUI": {
+        "stepId": "step//@workflow/ai@4.1.0-beta.60//writeToolOutputToUI"
+      }
+    },
+    "node_modules/@workflow/ai/dist/agent/do-stream-step.js": {
+      "doStreamStep": {
+        "stepId": "step//@workflow/ai@4.1.0-beta.60//doStreamStep"
       }
     },
     "node_modules/@workflow/ai/dist/agent/durable-agent.js": {
@@ -63,45 +74,52 @@
       "writeFinishChunk": {
         "stepId": "step//@workflow/ai/agent@4.1.0-beta.60//writeFinishChunk"
       }
-    },
-    "src/workflows/tools/generate-descriptions.ts": {
-      "emitPendingItems": {
-        "stepId": "step//./src/workflows/tools/generate-descriptions//emitPendingItems"
-      },
-      "generateSingleDescription": {
-        "stepId": "step//./src/workflows/tools/generate-descriptions//generateSingleDescription"
-      }
-    },
-    "src/workflows/tools/get-categories.ts": {
-      "executeGetCategories": {
-        "stepId": "step//./src/workflows/tools/get-categories//executeGetCategories"
-      }
-    },
-    "src/workflows/tools/get-products.ts": {
-      "executeGetProducts": {
-        "stepId": "step//./src/workflows/tools/get-products//executeGetProducts"
-      }
-    },
-    "src/workflows/tools/generate-seo-data.ts": {
-      "emitPendingItems": {
-        "stepId": "step//./src/workflows/tools/generate-seo-data//emitPendingItems"
-      },
-      "generateSingleSeoData": {
-        "stepId": "step//./src/workflows/tools/generate-seo-data//generateSingleSeoData"
-      }
     }
   },
   "workflows": {
-    "src/workflows/catalog-agent.ts": {
-      "catalogAgentWorkflow": {
-        "workflowId": "workflow//./src/workflows/catalog-agent//catalogAgentWorkflow",
+    "src/workflows/play-game.ts": {
+      "playGameWorkflow": {
+        "workflowId": "workflow//./src/workflows/play-game//playGameWorkflow",
         "graph": {
           "nodes": [
             {
               "id": "start",
               "type": "workflowStart",
               "data": {
-                "label": "Start: catalogAgentWorkflow",
+                "label": "Start: playGameWorkflow",
+                "nodeKind": "workflow_start"
+              }
+            },
+            {
+              "id": "end",
+              "type": "workflowEnd",
+              "data": {
+                "label": "Return",
+                "nodeKind": "workflow_end"
+              }
+            }
+          ],
+          "edges": [
+            {
+              "id": "e_start_end",
+              "source": "start",
+              "target": "end",
+              "type": "default"
+            }
+          ]
+        }
+      }
+    },
+    "src/workflows/persona-chat.ts": {
+      "personaChatWorkflow": {
+        "workflowId": "workflow//./src/workflows/persona-chat//personaChatWorkflow",
+        "graph": {
+          "nodes": [
+            {
+              "id": "start",
+              "type": "workflowStart",
+              "data": {
+                "label": "Start: personaChatWorkflow",
                 "nodeKind": "workflow_start"
               }
             },

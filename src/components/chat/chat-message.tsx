@@ -50,7 +50,7 @@ export function ChatMessage({ message }: ChatMessageProps) {
 
           if (isToolUIPart(part)) {
             const toolName = getToolName(part);
-            const label = null ?? toolName;
+            const label = toolName;
             const isDone = part.state === "output-available";
             const isError = part.state === "output-error";
             const isRunning = !isDone && !isError;
