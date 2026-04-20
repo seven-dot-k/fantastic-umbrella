@@ -12,6 +12,17 @@
         "stepId": "__builtin_response_text"
       }
     },
+    "src/workflows/steps/writer.ts": {
+      "writeStreamClose": {
+        "stepId": "step//./src/workflows/steps/writer//writeStreamClose"
+      },
+      "writeTurnEnd": {
+        "stepId": "step//./src/workflows/steps/writer//writeTurnEnd"
+      },
+      "writeUserMessageMarker": {
+        "stepId": "step//./src/workflows/steps/writer//writeUserMessageMarker"
+      }
+    },
     "src/workflows/play-game.ts": {
       "generatePersonasStep": {
         "stepId": "step//./src/workflows/play-game//generatePersonasStep"
@@ -38,9 +49,9 @@
         "stepId": "step//./src/workflows/play-game//writeStatusMessage"
       }
     },
-    "node_modules/workflow/dist/stdlib.js": {
-      "fetch": {
-        "stepId": "step//workflow@4.2.0-beta.76//fetch"
+    "node_modules/@workflow/ai/dist/agent/do-stream-step.js": {
+      "doStreamStep": {
+        "stepId": "step//@workflow/ai@4.1.0-beta.60//doStreamStep"
       }
     },
     "node_modules/@workflow/ai/dist/agent/durable-agent.js": {
@@ -59,20 +70,9 @@
         "stepId": "step//@workflow/ai@4.1.0-beta.60//writeToolOutputToUI"
       }
     },
-    "node_modules/@workflow/ai/dist/agent/do-stream-step.js": {
-      "doStreamStep": {
-        "stepId": "step//@workflow/ai@4.1.0-beta.60//doStreamStep"
-      }
-    },
-    "src/workflows/steps/writer.ts": {
-      "writeStreamClose": {
-        "stepId": "step//./src/workflows/steps/writer//writeStreamClose"
-      },
-      "writeTurnEnd": {
-        "stepId": "step//./src/workflows/steps/writer//writeTurnEnd"
-      },
-      "writeUserMessageMarker": {
-        "stepId": "step//./src/workflows/steps/writer//writeUserMessageMarker"
+    "node_modules/workflow/dist/stdlib.js": {
+      "fetch": {
+        "stepId": "step//workflow@4.2.0-beta.76//fetch"
       }
     }
   },
