@@ -1,3 +1,5 @@
+"use client";
+
 import GameInterfaceClient from "@/components/game/game-interface-client";
 
 export default function Home() {
