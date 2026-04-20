@@ -17,33 +17,41 @@ const MOOD_COLORS: Record<string, number> = {
 const DEFAULT_COLOR = 0x95a5a6;
 const NPC_RADIUS = 16;
 
-// Sprite sheet layout for /sprites/characters.png (1024x1024, 4x4 grid).
-// Each 256x256 cell contains a character portrait. The crop window skips the
-// text label at the bottom and side/top padding, leaving just the bust.
-// We use the PNG version (chroma-keyed from the JPG) so the sheet has a real
-// transparent background - see scripts/chroma-key-sprites.mjs.
-const SHEET_URL = "/sprites/characters.png";
-const SHEET_COLS = 4;
-const SHEET_ROWS = 4;
-const CELL_SIZE = 256;
-const FRAME_PAD_X = 40;
-const FRAME_PAD_Y = 40;
-const FRAME_W = 176;
-const FRAME_H = 185;
+// Sprite sheet layout for /sprites/characters-movement.png (1024x1024).
+// The sheet has a 6-column by 5-row grid of full-body characters. We use the
+// PNG (chroma-keyed from the JPG) so the sheet has real alpha transparency -
+// see scripts/chroma-key-sprites.mjs.
+//
+// Cell size is fractional (1024/6 x 1024/5) - PIXI's Rectangle accepts floats.
+const SHEET_URL = "/sprites/characters-movement.png";
+const SHEET_COLS = 6;
+const SHEET_ROWS = 5;
+const CELL_W = 1024 / SHEET_COLS; // ~170.67
+const CELL_H = 1024 / SHEET_ROWS; // 204.8
+// Crop inset removes the grid line and extra transparent padding around each
+// character, leaving a tight bounding box that shows the full body.
+const FRAME_PAD_X = 32;
+const FRAME_PAD_Y = 18;
+const FRAME_W = CELL_W - FRAME_PAD_X * 2;
+const FRAME_H = CELL_H - FRAME_PAD_Y * 2;
 
-// Displayed sprite size in world pixels, tuned to feel right next to the
-// player avatar and the mansion furniture scale.
-const DISPLAY_HEIGHT = 80;
+// Displayed sprite size in world pixels, tuned so characters read as humans
+// next to mansion furniture without feeling oversized.
+const DISPLAY_HEIGHT = 72;
 const DISPLAY_SCALE = DISPLAY_HEIGHT / FRAME_H;
 
-// Index 0 of the sheet is the detective PLAYER sprite; NPCs should pick from
-// the remaining 15 cells. Rows 1 and 3 (0-indexed) are the cleanest (no label
-// bled into the crop), so we list them first for visual preference.
+// Allowlist of flat (row * 6 + col) indices that contain clean full-body
+// sprites. Row 0 is mostly upper-body portraits; row 2 col 0 is empty; row 3
+// col 0 is an icon cell. Everything else is a usable full-body character.
 const NPC_FRAME_INDICES = [
-  4, 5, 6, 7, // row 1: no labels
-  12, 13, 14, 15, // row 3: no labels
-  1, 2, 3, // row 0 (skip player at index 0)
-  8, 9, 10, 11, // row 2
+  // Row 1: detective, butlers, heiresses (indices 6-11).
+  6, 7, 8, 9, 10, 11,
+  // Row 2: chefs and brunette maids (skip index 12 which is empty).
+  13, 14, 15, 16, 17,
+  // Row 3: doctors and blonde maids (skip index 18 which is an icon).
+  19, 20, 21, 22, 23,
+  // Row 4: detectives, farmhand kid, gardeners.
+  24, 25, 26, 27, 28, 29,
 ];
 
 /** Stable non-cryptographic string hash for picking a sprite frame. */
@@ -83,8 +91,8 @@ export function Npc({ x, y, name, mood, spriteSeed }: NpcProps) {
     SHEET_URL,
     SHEET_COLS,
     SHEET_ROWS,
-    CELL_SIZE,
-    CELL_SIZE,
+    CELL_W,
+    CELL_H,
     FRAME_PAD_X,
     FRAME_PAD_Y,
     FRAME_W,

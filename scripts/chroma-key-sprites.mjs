@@ -30,6 +30,16 @@ const INPUTS = [
     // Pixels between `keyRange` and `keyRange + feather` fade linearly.
     feather: 30,
   },
+  {
+    // Full-body walking sprites, 6x5 grid on the same pink background.
+    src: "public/sprites/characters-movement.jpg",
+    dst: "public/sprites/characters-movement.png",
+    keyR: 195,
+    keyG: 85,
+    keyB: 140,
+    keyRange: 55,
+    feather: 30,
+  },
 ];
 
 function processPixels(data, info, cfg) {
