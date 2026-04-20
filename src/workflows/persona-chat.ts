@@ -6,7 +6,10 @@ import {
 } from "./steps/writer";
 import { createGetCurrentStateTool } from "./tools/get-current-state";
 import { createAddEventTool } from "./tools/add-event";
-import type { GameState, GameEvent, PersonaSecret } from "./schemas/game-state";
+import { createSetNpcMoodTool } from "./tools/set-npc-mood";
+import { createAddClueTool } from "./tools/add-clue";
+import { createPresentDialogChoicesTool } from "./tools/present-dialog-choices";
+import type { GameState, GameEvent, PersonaSecret, Clue } from "./schemas/game-state";
 
 const MAX_STEPS_PER_TURN = 10;
 
@@ -133,6 +136,30 @@ export async function personaChatWorkflow(input: {
         input.onGameStateUpdate(currentGameState);
       },
     ),
+    set_npc_mood: createSetNpcMoodTool(
+      input.personaId,
+      (personaId, mood) => {
+        currentGameState = {
+          ...currentGameState,
+          personas: currentGameState.personas.map((p) =>
+            p.id === personaId ? { ...p, mood } : p,
+          ),
+        };
+        input.onGameStateUpdate(currentGameState);
+      },
+    ),
+    add_clue: createAddClueTool(
+      input.personaId,
+      input.personaName,
+      (clue: Clue) => {
+        currentGameState = {
+          ...currentGameState,
+          clues: [...(currentGameState.clues ?? []), clue],
+        };
+        input.onGameStateUpdate(currentGameState);
+      },
+    ),
+    present_dialog_choices: createPresentDialogChoicesTool(),
   };
 
   const agent = new DurableAgent({
