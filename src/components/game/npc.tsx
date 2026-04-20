@@ -17,21 +17,23 @@ const MOOD_COLORS: Record<string, number> = {
 const DEFAULT_COLOR = 0x95a5a6;
 const NPC_RADIUS = 16;
 
-// Sprite sheet layout for /sprites/characters.jpg (1024x1024, 4x4 grid).
-// Each 256x256 cell contains a character portrait with a text label near the
-// bottom - the crop window below skips the label and side padding.
-const SHEET_URL = "/sprites/characters.jpg";
+// Sprite sheet layout for /sprites/characters.png (1024x1024, 4x4 grid).
+// Each 256x256 cell contains a character portrait. The crop window skips the
+// text label at the bottom and side/top padding, leaving just the bust.
+// We use the PNG version (chroma-keyed from the JPG) so the sheet has a real
+// transparent background - see scripts/chroma-key-sprites.mjs.
+const SHEET_URL = "/sprites/characters.png";
 const SHEET_COLS = 4;
 const SHEET_ROWS = 4;
 const CELL_SIZE = 256;
-const FRAME_PAD_X = 28;
-const FRAME_PAD_Y = 30;
-const FRAME_W = 200;
-const FRAME_H = 180;
+const FRAME_PAD_X = 40;
+const FRAME_PAD_Y = 40;
+const FRAME_W = 176;
+const FRAME_H = 185;
 
 // Displayed sprite size in world pixels, tuned to feel right next to the
 // player avatar and the mansion furniture scale.
-const DISPLAY_HEIGHT = 64;
+const DISPLAY_HEIGHT = 80;
 const DISPLAY_SCALE = DISPLAY_HEIGHT / FRAME_H;
 
 // Index 0 of the sheet is the detective PLAYER sprite; NPCs should pick from
@@ -96,13 +98,14 @@ export function Npc({ x, y, name, mood, spriteSeed }: NpcProps) {
 
   const texture = frames?.[frameIndex] ?? null;
 
-  // Soft mood-colored ground shadow under the sprite's feet.
+  // Soft mood-colored ground shadow under the sprite's feet. Sits at the
+  // NPC's world position (local y=0) so the character appears to stand on it.
   const drawMoodRing = useCallback(
     (g: PixiGraphics) => {
       g.clear();
-      g.ellipse(0, 18, 20, 6).fill({ color: 0x000000, alpha: 0.25 });
-      g.ellipse(0, 18, 18, 5).fill({ color, alpha: 0.55 });
-      g.ellipse(0, 18, 18, 5).stroke({
+      g.ellipse(0, 4, 22, 6).fill({ color: 0x000000, alpha: 0.25 });
+      g.ellipse(0, 4, 20, 5).fill({ color, alpha: 0.55 });
+      g.ellipse(0, 4, 20, 5).stroke({
         color: 0xffffff,
         width: 1,
         alpha: 0.7,
@@ -111,12 +114,16 @@ export function Npc({ x, y, name, mood, spriteSeed }: NpcProps) {
     [color],
   );
 
-  // Fallback mood circle shown while the sprite sheet loads.
+  // Fallback mood circle shown while the sprite sheet loads. Positioned
+  // above the ground ring so it reads as a "head" placeholder.
   const drawFallback = useCallback(
     (g: PixiGraphics) => {
       g.clear();
-      g.circle(0, -4, NPC_RADIUS).fill(color);
-      g.circle(0, -4, NPC_RADIUS).stroke({ color: 0xffffff, width: 2 });
+      g.circle(0, -NPC_RADIUS - 2, NPC_RADIUS).fill(color);
+      g.circle(0, -NPC_RADIUS - 2, NPC_RADIUS).stroke({
+        color: 0xffffff,
+        width: 2,
+      });
     },
     [color],
   );
@@ -136,18 +143,21 @@ export function Npc({ x, y, name, mood, spriteSeed }: NpcProps) {
 
   return (
     <pixiContainer x={x} y={y}>
+      {/* Ground shadow drawn first so the sprite stands on top of it. */}
       <pixiGraphics draw={drawMoodRing} />
       {texture ? (
+        // Bottom-center anchor: sprite "stands" on the NPC position (0, 0).
+        // A 2px lift keeps the character visually above the shadow.
         <pixiSprite
           texture={texture}
-          anchor={0.5}
+          anchor={{ x: 0.5, y: 1 }}
           scale={DISPLAY_SCALE}
-          y={-4}
+          y={2}
         />
       ) : (
         <pixiGraphics draw={drawFallback} />
       )}
-      <pixiText text={name} style={labelStyle} anchor={0.5} y={32} />
+      <pixiText text={name} style={labelStyle} anchor={0.5} y={16} />
     </pixiContainer>
   );
 }
