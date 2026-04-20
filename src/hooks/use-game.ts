@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useRef } from "react";
 import { uiMessageChunkSchema, parseJsonEventStream } from "ai";
-import type { GameState } from "@/workflows/schemas/game-state";
+import type { GameState, Clue } from "@/workflows/schemas/game-state";
 
 const GAME_STORAGE_KEY = "murder-mystery-game-id";
 
@@ -16,6 +16,8 @@ export interface UseGameReturn {
   refreshState: () => Promise<void>;
   accuse: (personaId: string) => Promise<void>;
   endGame: () => Promise<void>;
+  updatePersonaMood: (personaId: string, mood: string) => void;
+  addClue: (clue: Clue) => void;
 }
 
 export function useGame(): UseGameReturn {
@@ -173,6 +175,30 @@ export function useGame(): UseGameReturn {
     localStorage.removeItem(GAME_STORAGE_KEY);
   }, [gameId]);
 
+  const updatePersonaMood = useCallback((personaId: string, mood: string) => {
+    setGameState((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        personas: prev.personas.map((p) =>
+          p.id === personaId ? { ...p, mood } : p,
+        ),
+      };
+    });
+  }, []);
+
+  const addClue = useCallback((clue: Clue) => {
+    setGameState((prev) => {
+      if (!prev) return prev;
+      // Avoid duplicate clues
+      if (prev.clues?.some((c) => c.id === clue.id)) return prev;
+      return {
+        ...prev,
+        clues: [...(prev.clues ?? []), clue],
+      };
+    });
+  }, []);
+
   return {
     gameId,
     gameState,
@@ -183,5 +209,7 @@ export function useGame(): UseGameReturn {
     refreshState,
     accuse,
     endGame,
+    updatePersonaMood,
+    addClue,
   };
 }

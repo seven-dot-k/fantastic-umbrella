@@ -162,6 +162,7 @@ export async function playGameWorkflow(initialState: FullGameState) {
       },
       personas,
       events: [],
+      clues: [],
       status: "active",
     },
     secret: secretState,

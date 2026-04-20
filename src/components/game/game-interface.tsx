@@ -1,187 +1,213 @@
 "use client";
 
-import { useState, useCallback } from "react";
-import { useGame } from "@/hooks/use-game";
-import { PersonaCard } from "./persona-card";
-import { PersonaChatPanel } from "./persona-chat-panel";
-import { GameResult } from "./game-result";
-import { EventLog } from "./event-log";
-import { Skull, Search } from "lucide-react";
+import { useCallback, useMemo, useState } from "react";
+import { useKeyboard } from "@/hooks/use-keyboard";
+import {
+  createDefaultMapLayout,
+  type MapLayout,
+} from "@/lib/game-config";
+import { ClueObject } from "./clue-object";
+import { GameWorld } from "./game-world";
+import { InteractionPrompt } from "./interaction-prompt";
+import { Npc } from "./npc";
+import { PixiCanvas } from "./pixi-canvas";
+import { Player, type NearbyEntity } from "./player";
+import { AccusationModal } from "@/components/overlay/accusation-modal";
+import {
+  DialoguePanel,
+  type DialogueChoice,
+} from "@/components/overlay/dialogue-panel";
+import { HudPanel } from "@/components/overlay/hud-panel";
 
-export function GameInterface() {
-  const {
-    gameId,
-    gameState,
-    statusMessage,
-    isLoading,
-    error,
-    startGame,
-    accuse,
-    endGame,
-    refreshState,
-  } = useGame();
+export interface GameInterfacePersona {
+  id: string;
+  name: string;
+  mood: string;
+}
 
-  const [selectedPersonaId, setSelectedPersonaId] = useState<string | null>(null);
-  const [showAccuseConfirm, setShowAccuseConfirm] = useState(false);
+export interface GameInterfaceClue {
+  id: string;
+  title: string;
+  description: string;
+}
 
-  const handleAccuse = useCallback(async () => {
-    if (!selectedPersonaId) return;
-    setShowAccuseConfirm(false);
-    await accuse(selectedPersonaId);
-  }, [selectedPersonaId, accuse]);
+export interface GameInterfaceProps {
+  /** Game state from the backend */
+  personas: GameInterfacePersona[];
+  clues: GameInterfaceClue[];
+  /** Dialogue state (driven by bridge in the bridge plan) */
+  dialogueText: string;
+  dialogueIsStreaming: boolean;
+  dialogueChoices: DialogueChoice[] | null;
+  dialoguePersonaId: string | null;
+  /** Callbacks for external integration */
+  onInteract: (entity: NearbyEntity) => void;
+  onSendMessage: (message: string) => void;
+  onSelectChoice: (choiceId: string, choiceLabel: string) => void;
+  onAccuse: (personaId: string) => void;
+  onCloseDialogue: () => void;
+}
 
-  const handleNewGame = useCallback(async () => {
-    await endGame();
-    setSelectedPersonaId(null);
-    setShowAccuseConfirm(false);
-  }, [endGame]);
+/**
+ * Top-level game shell.
+ *
+ * - Renders the PIXIJS canvas with GameWorld and entities (Player, NPCs,
+ *   clues, interaction prompt).
+ * - Renders DOM overlays (HUD, dialogue, accusation modal) absolutely
+ *   positioned over the canvas.
+ * - Owns only engine-local state (nearby entity, accusation modal visibility).
+ *   All backend-driven state and actions flow through props/callbacks.
+ */
+export function GameInterface({
+  personas,
+  clues,
+  dialogueText,
+  dialogueIsStreaming,
+  dialogueChoices,
+  dialoguePersonaId,
+  onInteract,
+  onSendMessage,
+  onSelectChoice,
+  onAccuse,
+  onCloseDialogue,
+}: GameInterfaceProps) {
+  const inputManager = useKeyboard();
 
-  // Game result screen
-  if (gameState && gameState.status !== "active") {
-    return <GameResult gameState={gameState} onNewGame={handleNewGame} />;
-  }
-
-  // Game lobby / start screen
-  if (!gameId || !gameState) {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-background">
-        <div className="max-w-lg w-full mx-auto p-8 text-center">
-          <div className="text-6xl mb-4">🔍</div>
-          <h1 className="text-3xl font-bold mb-2">Murder Mystery</h1>
-          <p className="text-muted-foreground mb-8">
-            A guest has been found dead at the party. As the lead detective,
-            interrogate the suspects and identify the killer before they escape.
-          </p>
-
-          {error && (
-            <div className="text-xs text-destructive bg-destructive/10 rounded-lg px-3 py-2 mb-4">
-              {error}
-            </div>
-          )}
-
-          <button
-            type="button"
-            onClick={startGame}
-            disabled={isLoading}
-            className="rounded-xl bg-primary px-6 py-3 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
-          >
-            {isLoading ? "Generating Mystery..." : "Start Investigation"}
-          </button>
-
-          {isLoading && (
-            <p className="text-xs text-muted-foreground mt-4 animate-pulse">
-              {statusMessage || "Creating characters, motives, and clues..."}
-            </p>
-          )}
-        </div>
-      </div>
-    );
-  }
-
-  const selectedPersona = gameState.personas.find(
-    (p) => p.id === selectedPersonaId,
+  const mapLayout: MapLayout = useMemo(
+    () => createDefaultMapLayout(personas.map((p) => p.id)),
+    [personas],
   );
 
+  const [nearby, setNearby] = useState<NearbyEntity | null>(null);
+  const [showAccusation, setShowAccusation] = useState(false);
+
+  const handleNearbyEntity = useCallback((entity: NearbyEntity | null) => {
+    setNearby(entity);
+  }, []);
+
+  const handleInteract = useCallback(
+    (entity: NearbyEntity) => {
+      if (entity.type === "accusation") {
+        setShowAccusation(true);
+        return;
+      }
+      onInteract(entity);
+    },
+    [onInteract],
+  );
+
+  const handleAccuse = useCallback(
+    (personaId: string) => {
+      setShowAccusation(false);
+      onAccuse(personaId);
+    },
+    [onAccuse],
+  );
+
+  const handleCancelAccusation = useCallback(() => {
+    setShowAccusation(false);
+  }, []);
+
+  // Look up the prompt position from the current nearby entity.
+  const promptPosition = useMemo(() => {
+    if (!nearby) return null;
+    if (nearby.type === "npc") {
+      const found = mapLayout.npcs.find((n) => n.personaId === nearby.id);
+      return found ? { x: found.x, y: found.y } : null;
+    }
+    if (nearby.type === "clue") {
+      const found = mapLayout.clues.find((c) => c.clueId === nearby.id);
+      return found ? { x: found.x, y: found.y } : null;
+    }
+    return {
+      x: mapLayout.accusationPoint.x,
+      y: mapLayout.accusationPoint.y,
+    };
+  }, [nearby, mapLayout]);
+
+  const dialoguePersona = dialoguePersonaId
+    ? personas.find((p) => p.id === dialoguePersonaId) ?? null
+    : null;
+  const dialogueIsOpen = dialoguePersonaId !== null;
+
   return (
-    <div className="flex h-screen bg-background">
-      {/* Left sidebar — scenario + personas */}
-      <div className="w-72 flex-shrink-0 border-r border-border flex flex-col">
-        {/* Scenario header */}
-        <div className="p-4 border-b border-border">
-          <div className="flex items-center gap-2 mb-2">
-            <Search className="size-4 text-primary" />
-            <h1 className="font-bold text-sm">{gameState.scenario.title}</h1>
+    <div className="flex min-h-screen items-center justify-center bg-slate-950 p-4">
+      <div
+        className="relative select-none overflow-hidden rounded-2xl border border-amber-900/30 shadow-2xl"
+        style={{ width: mapLayout.width, height: mapLayout.height }}
+      >
+        {/* Layer 0: PIXIJS canvas */}
+        <div className="absolute inset-0 z-0">
+          <PixiCanvas width={mapLayout.width} height={mapLayout.height}>
+            <GameWorld mapLayout={mapLayout}>
+              {mapLayout.clues.map((c) => (
+                <ClueObject key={c.clueId} x={c.x} y={c.y} />
+              ))}
+              {mapLayout.npcs.map((placement) => {
+                const persona = personas.find(
+                  (p) => p.id === placement.personaId,
+                );
+                return (
+                  <Npc
+                    key={placement.personaId}
+                    x={placement.x}
+                    y={placement.y}
+                    name={persona?.name ?? placement.personaId}
+                    mood={persona?.mood ?? "calm"}
+                  />
+                );
+              })}
+              <Player
+                inputManager={inputManager}
+                mapLayout={mapLayout}
+                spawnX={mapLayout.playerSpawn.x}
+                spawnY={mapLayout.playerSpawn.y}
+                onNearbyEntity={handleNearbyEntity}
+                onInteract={handleInteract}
+              />
+              {promptPosition && (
+                <InteractionPrompt
+                  x={promptPosition.x}
+                  y={promptPosition.y}
+                  visible={nearby !== null}
+                />
+              )}
+            </GameWorld>
+          </PixiCanvas>
+        </div>
+
+        {/* Overlay container (pointer-events pass-through) */}
+        <div className="pointer-events-none absolute inset-0 z-10">
+          {/* HUD: left side */}
+          <div className="absolute left-3 top-3 bottom-3">
+            <HudPanel personas={personas} clues={clues} />
           </div>
-          <p className="text-xs text-muted-foreground">
-            {gameState.scenario.setting}
-          </p>
-          <p className="text-xs text-muted-foreground mt-1">
-            Victim: {gameState.scenario.victimName} &middot;{" "}
-            {gameState.scenario.timeOfDeath}
-          </p>
+
+          {/* Dialogue: bottom */}
+          <DialoguePanel
+            isOpen={dialogueIsOpen}
+            personaName={dialoguePersona?.name ?? null}
+            text={dialogueText}
+            isStreaming={dialogueIsStreaming}
+            choices={dialogueChoices}
+            onSendMessage={onSendMessage}
+            onSelectChoice={onSelectChoice}
+            onClose={onCloseDialogue}
+          />
         </div>
 
-        {/* Synopsis */}
-        <div className="p-4 border-b border-border">
-          <p className="text-xs text-muted-foreground leading-relaxed">
-            {gameState.scenario.synopsis}
-          </p>
+        {/* Accusation modal (its own z-30 layer, covers canvas + overlays) */}
+        <AccusationModal
+          isOpen={showAccusation}
+          personas={personas}
+          onAccuse={handleAccuse}
+          onCancel={handleCancelAccusation}
+        />
+
+        {/* Controls hint */}
+        <div className="pointer-events-none absolute right-3 top-3 z-10 rounded-md border border-amber-900/30 bg-[rgba(20,15,30,0.75)] px-3 py-1.5 text-[11px] text-slate-300 backdrop-blur-sm">
+          WASD to move &middot; E to interact
         </div>
-
-        {/* Persona list */}
-        <div className="flex-1 overflow-y-auto p-3 space-y-2">
-          <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-1 mb-1">
-            Suspects
-          </h2>
-          {gameState.personas.map((persona) => (
-            <PersonaCard
-              key={persona.id}
-              persona={persona}
-              isSelected={persona.id === selectedPersonaId}
-              onClick={() => {
-                setSelectedPersonaId(persona.id);
-                refreshState();
-              }}
-            />
-          ))}
-        </div>
-
-        {/* Event log */}
-        <EventLog events={gameState.events} />
-
-        {/* Accuse button */}
-        <div className="p-3 border-t border-border">
-          {showAccuseConfirm && selectedPersona ? (
-            <div className="space-y-2">
-              <p className="text-xs text-center text-muted-foreground">
-                Accuse <strong>{selectedPersona.name}</strong> of murder?
-              </p>
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => setShowAccuseConfirm(false)}
-                  className="flex-1 rounded-lg border border-border px-3 py-2 text-xs hover:bg-muted transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={handleAccuse}
-                  disabled={isLoading}
-                  className="flex-1 rounded-lg bg-destructive px-3 py-2 text-xs font-medium text-destructive-foreground hover:bg-destructive/90 transition-colors disabled:opacity-50"
-                >
-                  Confirm
-                </button>
-              </div>
-            </div>
-          ) : (
-            <button
-              type="button"
-              onClick={() => {
-                if (selectedPersonaId) setShowAccuseConfirm(true);
-              }}
-              disabled={!selectedPersonaId || isLoading}
-              className="w-full flex items-center justify-center gap-2 rounded-lg bg-destructive/10 border border-destructive/20 px-3 py-2.5 text-xs font-medium text-destructive hover:bg-destructive/20 transition-colors disabled:opacity-30"
-            >
-              <Skull className="size-3.5" />
-              Accuse Selected Suspect
-            </button>
-          )}
-        </div>
-      </div>
-
-      {/* Right panel — chat with selected persona */}
-      <div className="flex-1 min-w-0">
-        {selectedPersona ? (
-          <PersonaChatPanel key={selectedPersona.id} persona={selectedPersona} gameId={gameId} />
-        ) : (
-          <div className="flex items-center justify-center h-full text-muted-foreground">
-            <div className="text-center">
-              <Search className="size-8 mx-auto mb-3 opacity-30" />
-              <p className="text-sm">Select a suspect to begin interrogation</p>
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );
