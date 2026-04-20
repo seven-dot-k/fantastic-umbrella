@@ -6,15 +6,7 @@ import {
 } from "./steps/writer";
 import { createGetCurrentStateTool } from "./tools/get-current-state";
 import { createAddEventTool } from "./tools/add-event";
-import { createSetNpcMoodTool } from "./tools/set-npc-mood";
-import { createAddClueTool } from "./tools/add-clue";
-import { createPresentDialogChoicesTool } from "./tools/present-dialog-choices";
-import type {
-  Clue,
-  GameState,
-  GameEvent,
-  PersonaSecret,
-} from "./schemas/game-state";
+import type { GameState, GameEvent, PersonaSecret } from "./schemas/game-state";
 
 const MAX_STEPS_PER_TURN = 10;
 
@@ -44,9 +36,6 @@ ${secret.secrets}
 - Respond naturally as this character would — sometimes evasive, sometimes emotional, sometimes helpful.
 - Use the get_current_state tool periodically to check your mood and what's been happening. React to events.
 - Use the add_event tool when you have a strong emotional reaction that others would notice (e.g. crying, slamming a table, going pale). Don't overuse it — only for significant visible reactions.
-- Use the set_npc_mood tool when your emotional state shifts during the conversation (e.g. calm → defensive after a pointed question). This updates what the detective sees in the HUD.
-- Use the add_clue tool ONLY when you reveal genuinely useful information — something that advances the investigation (e.g. a timeline detail, a witnessed argument, a piece of physical evidence). Do not fabricate clues; use only what you actually said.
-- Use the present_dialog_choices tool sparingly, at natural branching points in the conversation, to offer the detective 2-5 specific follow-up options.
 - Your mood and sanity affect how you respond. Low sanity means more erratic, paranoid, or emotional responses.
 - Never break character or acknowledge you are an AI.
 - Never reveal information freely — the detective must earn it through good questioning.
@@ -144,30 +133,6 @@ export async function personaChatWorkflow(input: {
         input.onGameStateUpdate(currentGameState);
       },
     ),
-    set_npc_mood: createSetNpcMoodTool(
-      input.personaId,
-      (personaId, mood) => {
-        currentGameState = {
-          ...currentGameState,
-          personas: currentGameState.personas.map((p) =>
-            p.id === personaId ? { ...p, mood } : p,
-          ),
-        };
-        input.onGameStateUpdate(currentGameState);
-      },
-    ),
-    add_clue: createAddClueTool(
-      input.personaId,
-      input.personaName,
-      (clue: Clue) => {
-        currentGameState = {
-          ...currentGameState,
-          clues: [...(currentGameState.clues ?? []), clue],
-        };
-        input.onGameStateUpdate(currentGameState);
-      },
-    ),
-    present_dialog_choices: createPresentDialogChoicesTool(),
   };
 
   const agent = new DurableAgent({

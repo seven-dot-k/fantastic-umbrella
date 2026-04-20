@@ -14,7 +14,6 @@ export async function POST() {
       scenario: {} as any,
       personas: [],
       events: [],
-      clues: [],
       status: "active",
     },
     secret: {} as any,

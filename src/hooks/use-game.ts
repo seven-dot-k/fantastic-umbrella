@@ -80,12 +80,7 @@ export function useGame(): UseGameReturn {
           if (data.type === "status" && data.message) {
             setStatusMessage(data.message);
           } else if (data.type === "game-state" && data.state) {
-            // Defensive: guarantee clues is always an array for consumers.
-            const normalized: GameState = {
-              ...data.state,
-              clues: data.state.clues ?? [],
-            };
-            setGameState(normalized);
+            setGameState(data.state);
             setStatusMessage(null);
           }
         }
