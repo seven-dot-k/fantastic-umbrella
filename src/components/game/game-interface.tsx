@@ -154,6 +154,7 @@ export function GameInterface({
                     y={placement.y}
                     name={persona?.name ?? placement.personaId}
                     mood={persona?.mood ?? "calm"}
+                    spriteSeed={placement.personaId}
                   />
                 );
               })}
