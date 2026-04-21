@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useRef, useEffect } from "react";
 import { NarrativeBridge } from "@/lib/narrative-bridge";
+import type { DebugEvent, DebugChannel } from "@/components/overlay/debug-panel";
 
 export interface DialogueState {
   isOpen: boolean;
@@ -23,6 +24,7 @@ interface UseNarrativeBridgeOptions {
     discoveredAt: number;
     discoveredFrom: string;
   }) => void;
+  onDebugEvent?: (event: DebugEvent) => void;
 }
 
 export interface NarrativeBridgeControls {
@@ -55,6 +57,21 @@ export function useNarrativeBridge(
   const bridgeRef = useRef<NarrativeBridge | null>(null);
   const optionsRef = useRef(options);
   const dialogueRef = useRef(dialogue);
+  const debugSeqRef = useRef(0);
+
+  const emitDebug = useCallback(
+    (channel: DebugChannel, type: string, source: string, data?: unknown) => {
+      optionsRef.current.onDebugEvent?.({
+        id: `dbg-${++debugSeqRef.current}`,
+        timestamp: Date.now(),
+        channel,
+        type,
+        source,
+        data,
+      });
+    },
+    [],
+  );
 
   // Update refs synchronously via useEffect to avoid refs-during-render lint errors
   useEffect(() => {
@@ -69,11 +86,29 @@ export function useNarrativeBridge(
   const handleDirectiveRef = useRef((toolName: string, output: unknown) => {
     const data = output as Record<string, unknown>;
 
+    // Debug: log every tool output
+    optionsRef.current.onDebugEvent?.({
+      id: `dbg-${++debugSeqRef.current}`,
+      timestamp: Date.now(),
+      channel: "ai-sdk",
+      type: "tool-output",
+      source: `directive:${toolName}`,
+      data: output,
+    });
+
     switch (toolName) {
       case "set_npc_mood": {
         const mood = data.mood as string;
         const personaId = dialogueRef.current.personaId;
         if (personaId && mood) {
+          optionsRef.current.onDebugEvent?.({
+            id: `dbg-${++debugSeqRef.current}`,
+            timestamp: Date.now(),
+            channel: "game-bridge",
+            type: "mood-update",
+            source: personaId,
+            data: { mood },
+          });
           optionsRef.current.onMoodUpdate(personaId, mood);
         }
         break;
@@ -88,6 +123,14 @@ export function useNarrativeBridge(
           discoveredFrom: string;
         };
         if (clue) {
+          optionsRef.current.onDebugEvent?.({
+            id: `dbg-${++debugSeqRef.current}`,
+            timestamp: Date.now(),
+            channel: "game-bridge",
+            type: "clue",
+            source: clue.discoveredFrom,
+            data: { title: clue.title, description: clue.description },
+          });
           optionsRef.current.onClueDiscovered(clue);
         }
         break;
@@ -95,6 +138,14 @@ export function useNarrativeBridge(
       case "present_dialog_choices": {
         const choices = data.choices as { id: string; label: string }[];
         if (choices && Array.isArray(choices)) {
+          optionsRef.current.onDebugEvent?.({
+            id: `dbg-${++debugSeqRef.current}`,
+            timestamp: Date.now(),
+            channel: "game-bridge",
+            type: "choices",
+            source: dialogueRef.current.personaId ?? "unknown",
+            data: choices,
+          });
           setDialogue((prev) => ({
             ...prev,
             choices,
@@ -115,6 +166,14 @@ export function useNarrativeBridge(
     bridgeRef.current = new NarrativeBridge({
       gameId: options.gameId,
       onTextDelta: (delta) => {
+        optionsRef.current.onDebugEvent?.({
+          id: `dbg-${++debugSeqRef.current}`,
+          timestamp: Date.now(),
+          channel: "ai-sdk",
+          type: "text-delta",
+          source: "stream",
+          data: delta.length > 80 ? delta.slice(0, 80) + "…" : delta,
+        });
         setDialogue((prev) => ({
           ...prev,
           text: prev.text + delta,
@@ -122,6 +181,14 @@ export function useNarrativeBridge(
         }));
       },
       onTextComplete: () => {
+        optionsRef.current.onDebugEvent?.({
+          id: `dbg-${++debugSeqRef.current}`,
+          timestamp: Date.now(),
+          channel: "ai-sdk",
+          type: "text-complete",
+          source: "stream",
+          data: null,
+        });
         setDialogue((prev) => ({
           ...prev,
           isStreaming: false,
@@ -131,12 +198,28 @@ export function useNarrativeBridge(
         handleDirectiveRef.current(toolName, output);
       },
       onInteractionComplete: () => {
+        optionsRef.current.onDebugEvent?.({
+          id: `dbg-${++debugSeqRef.current}`,
+          timestamp: Date.now(),
+          channel: "ai-sdk",
+          type: "interaction-complete",
+          source: "stream",
+          data: null,
+        });
         setDialogue((prev) => ({
           ...prev,
           isStreaming: false,
         }));
       },
       onError: (error) => {
+        optionsRef.current.onDebugEvent?.({
+          id: `dbg-${++debugSeqRef.current}`,
+          timestamp: Date.now(),
+          channel: "ai-sdk",
+          type: "error",
+          source: "stream",
+          data: error,
+        });
         console.error("[NarrativeBridge] Error:", error);
         setDialogue((prev) => ({
           ...prev,
@@ -155,6 +238,8 @@ export function useNarrativeBridge(
     async (personaId: string, personaName: string, message: string) => {
       if (!bridgeRef.current) return;
 
+      emitDebug("game-bridge", "interaction-start", personaId, { personaName, message });
+
       // Open dialogue panel and reset state
       setDialogue({
         isOpen: true,
@@ -167,12 +252,14 @@ export function useNarrativeBridge(
 
       await bridgeRef.current.startInteraction(personaId, message);
     },
-    [],
+    [emitDebug],
   );
 
   const sendMessage = useCallback(async (message: string) => {
     const personaId = dialogueRef.current.personaId;
     if (!bridgeRef.current || !personaId) return;
+
+    emitDebug("game-bridge", "message-sent", personaId, { message });
 
     // Clear choices and append to text
     setDialogue((prev) => ({
@@ -183,12 +270,14 @@ export function useNarrativeBridge(
     }));
 
     await bridgeRef.current.sendMessage(personaId, message);
-  }, []);
+  }, [emitDebug]);
 
   const selectChoice = useCallback(
     async (choiceId: string, choiceLabel: string) => {
       const personaId = dialogueRef.current.personaId;
       if (!bridgeRef.current || !personaId) return;
+
+      emitDebug("game-bridge", "message-sent", personaId, { choiceId, choiceLabel });
 
       // Clear choices and send choice label as message
       setDialogue((prev) => ({
@@ -200,7 +289,7 @@ export function useNarrativeBridge(
 
       await bridgeRef.current.sendMessage(personaId, choiceLabel);
     },
-    [],
+    [emitDebug],
   );
 
   const submitAccusation = useCallback(async (personaId: string) => {

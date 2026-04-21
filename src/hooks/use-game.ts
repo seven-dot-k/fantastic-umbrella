@@ -4,8 +4,6 @@ import { useState, useCallback, useRef } from "react";
 import { uiMessageChunkSchema, parseJsonEventStream } from "ai";
 import type { GameState, Clue } from "@/workflows/schemas/game-state";
 
-const GAME_STORAGE_KEY = "murder-mystery-game-id";
-
 export interface UseGameReturn {
   gameId: string | null;
   gameState: GameState | null;
@@ -21,12 +19,7 @@ export interface UseGameReturn {
 }
 
 export function useGame(): UseGameReturn {
-  const [gameId, setGameId] = useState<string | null>(() => {
-    if (typeof window !== "undefined") {
-      return localStorage.getItem(GAME_STORAGE_KEY);
-    }
-    return null;
-  });
+  const [gameId, setGameId] = useState<string | null>(null);
   const [gameState, setGameState] = useState<GameState | null>(null);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -57,7 +50,6 @@ export function useGame(): UseGameReturn {
       const runId = response.headers.get("x-workflow-run-id");
       if (runId) {
         setGameId(runId);
-        localStorage.setItem(GAME_STORAGE_KEY, runId);
       }
 
       // Parse the raw byte stream into UIMessageChunks
@@ -108,7 +100,6 @@ export function useGame(): UseGameReturn {
           // Game expired
           setGameId(null);
           setGameState(null);
-          localStorage.removeItem(GAME_STORAGE_KEY);
           return;
         }
         throw new Error("Failed to fetch game state");
@@ -172,7 +163,6 @@ export function useGame(): UseGameReturn {
 
     setGameId(null);
     setGameState(null);
-    localStorage.removeItem(GAME_STORAGE_KEY);
   }, [gameId]);
 
   const updatePersonaMood = useCallback((personaId: string, mood: string) => {

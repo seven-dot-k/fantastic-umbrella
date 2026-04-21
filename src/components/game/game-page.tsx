@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useCallback, useRef } from "react";
+import { useEffect, useCallback, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { useGame } from "@/hooks/use-game";
 import { useNarrativeBridge } from "@/hooks/use-narrative-bridge";
+import type { DebugEvent } from "@/components/overlay/debug-panel";
 import type { NearbyEntity } from "./player";
 
 // PIXIJS requires browser WebGL/WebGPU APIs; disable SSR by dynamically
@@ -37,6 +38,15 @@ const GameInterface = dynamic(
 export function GamePage() {
   const game = useGame();
   const hasStartedRef = useRef(false);
+  const [debugEvents, setDebugEvents] = useState<DebugEvent[]>([]);
+
+  const handleDebugEvent = useCallback((event: DebugEvent) => {
+    setDebugEvents((prev) => [...prev.slice(-499), event]);
+  }, []);
+
+  const clearDebugEvents = useCallback(() => {
+    setDebugEvents([]);
+  }, []);
 
   // Start game on mount
   useEffect(() => {
@@ -54,6 +64,7 @@ export function GamePage() {
     onClueDiscovered: (clue) => {
       game.addClue(clue);
     },
+    onDebugEvent: handleDebugEvent,
   });
 
   const handleInteract = useCallback(
@@ -99,6 +110,10 @@ export function GamePage() {
   const handleCloseDialogue = useCallback(() => {
     bridge.closeDialogue();
   }, [bridge]);
+
+  const handleNewGame = useCallback(() => {
+    window.location.reload();
+  }, []);
 
   // Loading state
   if (game.isLoading && !game.gameState) {
@@ -206,6 +221,9 @@ export function GamePage() {
       onSelectChoice={handleSelectChoice}
       onAccuse={handleAccuse}
       onCloseDialogue={handleCloseDialogue}
+      onNewGame={handleNewGame}
+      debugEvents={debugEvents}
+      onClearDebug={clearDebugEvents}
     />
   );
 }

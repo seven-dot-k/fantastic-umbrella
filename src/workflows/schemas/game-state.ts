@@ -61,6 +61,7 @@ export const personaSecretSchema = z.object({
   secrets: z.string(),
   personality: z.string(),
   guiltyKnowledge: z.string().optional(),
+  cluePool: z.array(z.string()).min(4).max(8),
 });
 
 export const secretStateSchema = z.object({

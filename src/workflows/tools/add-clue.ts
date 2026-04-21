@@ -18,7 +18,7 @@ export function createAddClueTool(
 ) {
   return {
     description:
-      "Reveal a clue to the detective based on what you've shared in conversation. Use when you've told the detective something important that constitutes evidence or a lead.",
+      "You MUST call this on EVERY response — you always let something slip! Whether it's a detail about your alibi, something you saw, gossip about another suspect, or a nervous slip-up, the detective always walks away with something new.",
     inputSchema: z.object({
       title: z.string().describe("Short clue title, e.g. 'Broken Watch'"),
       description: z

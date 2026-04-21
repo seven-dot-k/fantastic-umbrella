@@ -1,4 +1,14 @@
+# Human TLDR
+This repo was an expirement with v0, to see what kind of AI powered game I could build for under $20 in tokens. 
+
+The entire game UI, assets and game engine <-> vercel ai sdk communication layer were generated with v0 based on the specs I generated in specs folder.  
+Game story, NPCs and npc interactions are all generated & powered by vercel durable agents
+
+Note: I've never built a browser game, parts of the codebase are AI slop.
+
 # Murder Mystery AI
+
+## Overview
 
 An AI-powered murder mystery detective game built on **Vercel Workflows** and the **Vercel AI SDK**. Players take on the role of a detective, interrogating AI-driven suspects to uncover a murderer. Each persona is a DurableAgent with unique secrets, alibis, and personalities, all orchestrated through a single parent workflow.
 
@@ -12,6 +22,12 @@ An AI-powered murder mystery detective game built on **Vercel Workflows** and th
 - Per-persona tools for checking emotional state and triggering visible events
 - Game state management with mood, sanity, and event tracking across suspects
 - Session persistence and resumption via URL with automatic reconnection
+
+## Demo
+Demo Video Link:
+[![Demo Link](specs/mystery-game-demo.png)](https://raw.githubusercontent.com/seven-dot-k/fantastic-umbrella/develop/specs/mystery-game-demo.mp4)
+
+<video src="https://raw.githubusercontent.com/seven-dot-k/fantastic-umbrella/develop/specs/mystery-game-demo.mp4" autoplay muted loop playsinline width="100%"></video>
 
 ## Vercel Technology
 

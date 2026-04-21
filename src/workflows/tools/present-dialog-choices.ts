@@ -12,7 +12,7 @@ import { z } from "zod";
 export function createPresentDialogChoicesTool() {
   return {
     description:
-      "Present the detective with specific dialogue options to choose from. Use when the conversation reaches a natural branching point.",
+      "Present the detective with dialogue options to choose from. You MUST call this after EVERY reply — always give 2-4 fun options for the detective to respond with.",
     inputSchema: z.object({
       prompt: z
         .string()

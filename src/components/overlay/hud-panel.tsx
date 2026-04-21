@@ -39,7 +39,7 @@ export function HudPanel({ personas, clues }: HudPanelProps) {
 
   return (
     <div
-      className="pointer-events-auto flex h-full w-[220px] flex-col gap-4 rounded-xl border border-amber-900/40 bg-[rgba(20,15,30,0.88)] p-3 text-slate-100 shadow-xl backdrop-blur-md"
+      className="pointer-events-auto flex h-full w-[220px] flex-col gap-4 rounded-xl border border-amber-900/40 bg-[#41281D] p-3 text-slate-100 shadow-xl backdrop-blur-md"
       aria-label="Investigation HUD"
     >
       {/* Suspects section */}

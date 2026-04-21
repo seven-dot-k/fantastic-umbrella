@@ -279,24 +279,24 @@ export async function playGameWorkflow(initialState: FullGameState) {
 
           if (isFirstTurn) {
             // First turn: write greeting marker and set up initial prompt
-            const greeting = `*${persona.name} sits down across from you, looking ${persona.mood ?? "uneasy"}.*`;
+            // const greeting = `*${persona.name} shuffles over, looking ${persona.mood ?? "deeply suspicious"}. This should be fun.*`;
             messages.push({
               role: "user",
-              content: "The detective approaches you for questioning. Introduce yourself briefly and wait for their questions.",
+              content: "I'm detective Nash, who are you and what do you know about the murder?",
             });
 
-            await writeUserMessageMarker(
-              personaWritable,
-              greeting,
-              `system-${gameId}-${personaId}-greeting`,
-              {
-                turnNumber: 1,
-                turnStartedAt: workflowStartTime,
-                workflowRunId: gameId,
-                workflowStartedAt: workflowStartTime,
-                isFirstTurn: true,
-              },
-            );
+            // await writeUserMessageMarker(
+            //   personaWritable,
+            //   greeting,
+            //   `system-${gameId}-${personaId}-greeting`,
+            //   {
+            //     turnNumber: 1,
+            //     turnStartedAt: workflowStartTime,
+            //     workflowRunId: gameId,
+            //     workflowStartedAt: workflowStartTime,
+            //     isFirstTurn: true,
+            //   },
+            // );
           } else {
             // Follow-up: write user message marker and add to history
             const followUpId = `user-${gameId}-${personaId}-${turnNumber}`;
@@ -314,7 +314,7 @@ export async function playGameWorkflow(initialState: FullGameState) {
             );
             messages.push({ role: "user", content: event.message });
           }
-
+          console.log(JSON.stringify(messages, null, 2))
           // Spawn child persona workflow via direct await (flattening)
           const result = await personaChatWorkflow({
             gameId,
@@ -417,7 +417,7 @@ function delay(ms: number) {
  */
 async function generateScenarioStep() {
   "use step";
-  await delay(5000);
+  await delay(2500);
   return fallbackGameScenario.scenario;
 }
 
@@ -426,7 +426,7 @@ async function generateScenarioStep() {
  */
 async function generatePersonasStep() {
   "use step";
-  await delay(5000);
+  await delay(2500);
   return fallbackGameScenario.personas;
 }
 
@@ -435,6 +435,6 @@ async function generatePersonasStep() {
  */
 async function generateSecretsStep() {
   "use step";
-  await delay(5000);
+  await delay(2500);
   return fallbackGameScenario.secretState;
 }

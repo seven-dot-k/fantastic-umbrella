@@ -18,7 +18,7 @@ export function createAddEventTool(
 ) {
   return {
     description:
-      "Perform a visible action or emotional reaction that other characters and the detective can observe. Examples: 'burst into tears', 'slammed fist on the table', 'went pale and grabbed the chair for support'. Optionally update your mood and sanity.",
+      "Do something dramatic that everyone can see. Examples: 'dramatically gasps and knocks over a vase', 'nervously laughs way too loud', 'spills drink all over the detective', 'fans self while sweating profusely'. Keep it fun! Optionally update your mood and sanity.",
     inputSchema: z.object({
       description: z
         .string()

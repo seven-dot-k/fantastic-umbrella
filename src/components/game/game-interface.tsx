@@ -18,6 +18,7 @@ import {
   type DialogueChoice,
 } from "@/components/overlay/dialogue-panel";
 import { HudPanel } from "@/components/overlay/hud-panel";
+import { DebugPanel, type DebugEvent } from "@/components/overlay/debug-panel";
 
 export interface GameInterfacePersona {
   id: string;
@@ -46,6 +47,10 @@ export interface GameInterfaceProps {
   onSelectChoice: (choiceId: string, choiceLabel: string) => void;
   onAccuse: (personaId: string) => void;
   onCloseDialogue: () => void;
+  onNewGame?: () => void;
+  /** Debug panel props */
+  debugEvents?: DebugEvent[];
+  onClearDebug?: () => void;
 }
 
 /**
@@ -70,6 +75,9 @@ export function GameInterface({
   onSelectChoice,
   onAccuse,
   onCloseDialogue,
+  onNewGame,
+  debugEvents,
+  onClearDebug,
 }: GameInterfaceProps) {
   const inputManager = useKeyboard();
 
@@ -132,82 +140,109 @@ export function GameInterface({
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-slate-950 p-4">
+      <div className="flex flex-row items-start gap-4">
       <div
-        className="relative select-none overflow-hidden rounded-2xl border border-amber-900/30 shadow-2xl"
-        style={{ width: mapLayout.width, height: mapLayout.height }}
+        className="flex flex-col select-none rounded-2xl border border-amber-900/30 bg-[#1a1a2e] shadow-2xl"
+        style={{ width: 1290 }}
       >
-        {/* Layer 0: PIXIJS canvas */}
-        <div className="absolute inset-0 z-0">
-          <PixiCanvas width={mapLayout.width} height={mapLayout.height}>
-            <GameWorld mapLayout={mapLayout}>
-              {mapLayout.clues.map((c) => (
-                <ClueObject key={c.clueId} x={c.x} y={c.y} />
-              ))}
-              {mapLayout.npcs.map((placement) => {
-                const persona = personas.find(
-                  (p) => p.id === placement.personaId,
-                );
-                return (
-                  <Npc
-                    key={placement.personaId}
-                    x={placement.x}
-                    y={placement.y}
-                    name={persona?.name ?? placement.personaId}
-                    mood={persona?.mood ?? "calm"}
-                  />
-                );
-              })}
-              <Player
-                inputManager={inputManager}
-                mapLayout={mapLayout}
-                spawnX={mapLayout.playerSpawn.x}
-                spawnY={mapLayout.playerSpawn.y}
-                onNearbyEntity={handleNearbyEntity}
-                onInteract={handleInteract}
-              />
-              {promptPosition && (
-                <InteractionPrompt
-                  x={promptPosition.x}
-                  y={promptPosition.y}
-                  visible={nearby !== null}
+        {/* Game world area — centered canvas with padding around it */}
+        <div
+          className="relative shrink-0 flex items-center justify-center overflow-hidden"
+          style={{ padding: "50px 25px 200px 100px" }}
+        >
+          {/* Layer 0: PIXIJS canvas */}
+          <div className="z-0">
+            <PixiCanvas width={mapLayout.width} height={mapLayout.height}>
+              <GameWorld mapLayout={mapLayout}>
+                {mapLayout.clues.map((c) => (
+                  <ClueObject key={c.clueId} x={c.x} y={c.y} />
+                ))}
+                {mapLayout.npcs.map((placement) => {
+                  const persona = personas.find(
+                    (p) => p.id === placement.personaId,
+                  );
+                  return (
+                    <Npc
+                      key={placement.personaId}
+                      x={placement.x}
+                      y={placement.y}
+                      name={persona?.name ?? placement.personaId}
+                      mood={persona?.mood ?? "calm"}
+                      spriteSeed={placement.personaId}
+                    />
+                  );
+                })}
+                <Player
+                  inputManager={inputManager}
+                  mapLayout={mapLayout}
+                  spawnX={mapLayout.playerSpawn.x}
+                  spawnY={mapLayout.playerSpawn.y}
+                  onNearbyEntity={handleNearbyEntity}
+                  onInteract={handleInteract}
                 />
-              )}
-            </GameWorld>
-          </PixiCanvas>
-        </div>
-
-        {/* Overlay container (pointer-events pass-through) */}
-        <div className="pointer-events-none absolute inset-0 z-10">
-          {/* HUD: left side */}
-          <div className="absolute left-3 top-3 bottom-3">
-            <HudPanel personas={personas} clues={clues} />
+                {promptPosition && (
+                  <InteractionPrompt
+                    x={promptPosition.x}
+                    y={promptPosition.y}
+                    visible={nearby !== null}
+                  />
+                )}
+              </GameWorld>
+            </PixiCanvas>
           </div>
 
-          {/* Dialogue: bottom */}
-          <DialoguePanel
-            isOpen={dialogueIsOpen}
-            personaName={dialoguePersona?.name ?? null}
-            text={dialogueText}
-            isStreaming={dialogueIsStreaming}
-            choices={dialogueChoices}
-            onSendMessage={onSendMessage}
-            onSelectChoice={onSelectChoice}
-            onClose={onCloseDialogue}
+          {/* HUD overlay (pointer-events pass-through) */}
+          <div className="pointer-events-none absolute inset-0 z-10">
+            <div className="absolute left-3 top-3 bottom-3">
+              <HudPanel personas={personas} clues={clues} />
+            </div>
+
+            {/* Dialogue: absolute bottom */}
+            <DialoguePanel
+              isOpen={dialogueIsOpen}
+              personaName={dialoguePersona?.name ?? null}
+              text={dialogueText}
+              isStreaming={dialogueIsStreaming}
+              choices={dialogueChoices}
+              onSendMessage={onSendMessage}
+              onSelectChoice={onSelectChoice}
+              onClose={onCloseDialogue}
+            />
+          </div>
+
+          {/* Accusation modal (its own z-30 layer, covers canvas + overlays) */}
+          <AccusationModal
+            isOpen={showAccusation}
+            personas={personas}
+            onAccuse={handleAccuse}
+            onCancel={handleCancelAccusation}
           />
-        </div>
 
-        {/* Accusation modal (its own z-30 layer, covers canvas + overlays) */}
-        <AccusationModal
-          isOpen={showAccusation}
-          personas={personas}
-          onAccuse={handleAccuse}
-          onCancel={handleCancelAccusation}
+          {/* Controls hint + New Game */}
+          <div className="pointer-events-none absolute right-3 top-3 z-10 flex items-center gap-2">
+            <div className="rounded-md border border-amber-900/30 bg-[rgba(20,15,30,0.75)] px-3 py-1.5 text-[11px] text-slate-300 backdrop-blur-sm">
+              WASD to move &middot; E to interact
+            </div>
+            {onNewGame && (
+              <button
+                type="button"
+                onClick={onNewGame}
+                className="pointer-events-auto rounded-md border border-red-900/40 bg-[rgba(40,15,15,0.85)] px-3 py-1.5 text-[11px] font-semibold text-red-300 backdrop-blur-sm hover:bg-red-900/60 hover:text-red-100 transition-colors"
+              >
+                New Game
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Debug panel — outside game container */}
+      {debugEvents && (
+        <DebugPanel
+          events={debugEvents}
+          onClear={onClearDebug ?? (() => {})}
         />
-
-        {/* Controls hint */}
-        <div className="pointer-events-none absolute right-3 top-3 z-10 rounded-md border border-amber-900/30 bg-[rgba(20,15,30,0.75)] px-3 py-1.5 text-[11px] text-slate-300 backdrop-blur-sm">
-          WASD to move &middot; E to interact
-        </div>
+      )}
       </div>
     </div>
   );

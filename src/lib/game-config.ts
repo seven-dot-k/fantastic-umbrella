@@ -44,24 +44,39 @@ export interface MapLayout {
   playerSpawn: { x: number; y: number };
 }
 
-/** Generate a default map layout for the given persona IDs. */
+/**
+ * Hand-tuned NPC scatter positions within the mansion room's walkable zones.
+ * Positions are sampled around the perimeter of the room so characters feel
+ * placed rather than lined up, while staying clear of furniture collisions.
+ */
+const NPC_SCATTER_POSITIONS: Array<{ x: number; y: number }> = [
+  { x: 130, y: 340 }, // left wall, middle
+  { x: 550, y: 270 }, // right of the rug, upper
+  { x: 370, y: 510 }, // bottom of rug, near door
+  { x: 240, y: 230 }, // below the bookshelves
+  { x: 620, y: 480 }, // in front of the fireplace
+  { x: 870, y: 420 }, // far right corridor
+];
+
+/** Generate a map layout matching the pre-rendered mansion-room.jpg art. */
 export function createDefaultMapLayout(personaIds: string[]): MapLayout {
+  // Matches the 3:2 aspect ratio of the mansion background art.
   const width = 960;
   const height = 640;
-  const centerX = width / 2;
-  const centerY = height / 2;
 
-  // Distribute NPCs in a circle around the room center.
-  const npcRadius = 200;
+  // Accusation focal point: centered on the ritual circle painted on the rug.
+  const accusationX = 435;
+  const accusationY = 322;
+
+  // Place NPCs at scattered positions, wrapping if more personas than slots.
   const npcs: NpcPlacement[] = personaIds.map((id, i) => {
-    const angle =
-      personaIds.length > 0
-        ? (i / personaIds.length) * Math.PI * 2 - Math.PI / 2
-        : 0;
+    const slot =
+      NPC_SCATTER_POSITIONS[i % NPC_SCATTER_POSITIONS.length] ??
+      NPC_SCATTER_POSITIONS[0];
     return {
       personaId: id,
-      x: centerX + Math.cos(angle) * npcRadius,
-      y: centerY + Math.sin(angle) * npcRadius,
+      x: slot.x,
+      y: slot.y,
       interactionRadius: 48,
     };
   });
@@ -70,22 +85,37 @@ export function createDefaultMapLayout(personaIds: string[]): MapLayout {
     width,
     height,
     npcs,
+    // Clues placed near thematic props visible in the mansion art.
     clues: [
-      { clueId: "env-clue-1", x: 120, y: 120, interactionRadius: 32 },
-      {
-        clueId: "env-clue-2",
-        x: width - 120,
-        y: height - 120,
-        interactionRadius: 32,
-      },
+      // On the teacup table in the bottom-left sitting area.
+      { clueId: "env-clue-1", x: 320, y: 445, interactionRadius: 36 },
+      // On the fireplace mantle in the bottom-right.
+      { clueId: "env-clue-2", x: 755, y: 515, interactionRadius: 36 },
+      // Tucked against the bookshelves along the top wall.
+      { clueId: "env-clue-3", x: 430, y: 205, interactionRadius: 36 },
     ],
+    // Collision boxes matching the walls and furniture depicted in the art.
     furniture: [
-      { id: "table-1", x: 100, y: 280, width: 80, height: 60 },
-      { id: "bookshelf-1", x: width - 100, y: 100, width: 60, height: 120 },
-      { id: "couch-1", x: 200, y: height - 100, width: 120, height: 50 },
+      // Outer walls + built-in top furniture (bookshelves, clock, painting).
+      { id: "wall-top", x: 0, y: 0, width, height: 180 },
+      { id: "wall-left", x: 0, y: 180, width: 55, height: 380 },
+      { id: "wall-right", x: 905, y: 180, width: 55, height: 380 },
+      { id: "wall-bottom-left", x: 0, y: 560, width: 441, height: 80 },
+      { id: "wall-bottom-right", x: 553, y: 560, width: 407, height: 80 },
+      // Free-standing furniture the player can see and collide with.
+      { id: "fireplace", x: 670, y: 338, width: 170, height: 187 },
+      { id: "armchair", x: 169, y: 425, width: 121, height: 87 },
+      { id: "side-table-left", x: 89, y: 437, width: 75, height: 41 },
+      { id: "teacup-table", x: 267, y: 469, width: 75, height: 43 },
+      { id: "potted-plant", x: 108, y: 500, width: 75, height: 62 },
     ],
-    accusationPoint: { x: centerX, y: centerY, interactionRadius: 48 },
-    playerSpawn: { x: centerX, y: height - 80 },
+    accusationPoint: {
+      x: accusationX,
+      y: accusationY,
+      interactionRadius: 56,
+    },
+    // Player spawns on the walkable floor just inside the main door.
+    playerSpawn: { x: 497, y: 540 },
   };
 }
 

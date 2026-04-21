@@ -60,18 +60,7 @@ export function usePersonaChat(
   const [isGenerating, setIsGenerating] = useState(false);
   const activityTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Check for existing chat session in storage
-  const storageKey = `persona-chat-${personaId}`;
-
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      const storedRunId = localStorage.getItem(storageKey);
-      if (storedRunId) {
-        setRunId(storedRunId);
-        setShouldResume(true);
-      }
-    }
-  }, [storageKey]);
+  // No longer persisting run IDs to storage
 
   const transport = useMemo(
     () =>
@@ -86,30 +75,27 @@ export function usePersonaChat(
           const workflowRunId = response.headers.get("x-workflow-run-id");
           if (workflowRunId) {
             setRunId(workflowRunId);
-            localStorage.setItem(storageKey, workflowRunId);
           }
         },
         onChatEnd: () => {
           setRunId(null);
-          localStorage.removeItem(storageKey);
           sentMessagesRef.current.clear();
           setPendingMessage(null);
         },
         prepareReconnectToStreamRequest: (opts) => {
-          const storedRunId = localStorage.getItem(storageKey);
-          if (!storedRunId) {
+          if (!runId) {
             throw new Error("No active workflow run ID found");
           }
           const { api: _unusedApi, ...rest } = opts;
           void _unusedApi;
           return {
             ...rest,
-            api: `/api/agent/${encodeURIComponent(personaId)}/stream/${encodeURIComponent(storedRunId)}`,
+            api: `/api/agent/${encodeURIComponent(personaId)}/stream/${encodeURIComponent(runId)}`,
           };
         },
         maxConsecutiveErrors: 5,
       }),
-    [personaId, storageKey, gameId],
+    [personaId, gameId],
   );
 
   const {
@@ -263,7 +249,6 @@ export function usePersonaChat(
 
     setRunId(null);
     setShouldResume(false);
-    localStorage.removeItem(storageKey);
     sentMessagesRef.current.clear();
     setPendingMessage(null);
     setMessages([]);
@@ -289,7 +274,7 @@ export function usePersonaChat(
         // Game workflow may have ended — that's okay
       }
     }
-  }, [runId, gameId, personaId, storageKey, setMessages, stop]);
+  }, [runId, gameId, personaId, setMessages, stop]);
 
   return {
     messages,
